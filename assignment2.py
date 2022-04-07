@@ -80,7 +80,8 @@ def objective(schedule,simulations=10000):
     output:
         objective value = 2x(mean tardiness) + mean waiting time
     '''
-    schedule_dict = {}
+    start_times = [i for i,v in enumerate(schedule) if v]
+    schedule_dict = {i: start_times[i]*params['interval'] for i in range(1,params['patients']+1)}
 
 #%%
 """
