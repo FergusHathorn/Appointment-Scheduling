@@ -40,26 +40,31 @@ params = {
 
 schedule = {i: (i-1)*params['appt_block_length'] for i in range(1,params['patients']+1)} # evenly spaced schedule
 
-tardiness = []
-waiting = []
-for i in range(10000):
-    waiting_times = []
-    finish_times = []
-    
-    sim_time = 0
-    finish_time = 0
-    for patient in schedule:
-        waiting_times.append(max(0,finish_time-schedule[patient]))
-        finish_time = sim_time+params['interval']*round(apt()/params['interval'])
-        finish_times.append(finish_time)
+def simulate(schedule,simulations, params):
+    tardiness = []
+    waiting = []
+    for i in range(10000):
+        waiting_times = []
+        finish_times = []
         
-        sim_time = max(finish_time, schedule[patient])
+        sim_time = 0
+        finish_time = 0
+        for patient in schedule:
+            waiting_times.append(max(0,finish_time-schedule[patient]))
+            finish_time = sim_time+params['interval']*round(apt()/params['interval'])
+            finish_times.append(finish_time)
+            
+            sim_time = max(finish_time, schedule[patient])
+            
+        tardiness.append(max(sim_time-params['sim_length'],0))
+        waiting.append(waiting_times)
         
-    tardiness.append(max(sim_time-params['sim_length'],0))
-    waiting.append(waiting_times)
+    mean_waiting_time = np.mean(waiting)
+    mean_tardiness = np.mean(tardiness)
     
-mean_waiting_time = np.mean(waiting);print(mean_waiting_time)
-mean_tardiness = np.mean(tardiness);print(mean_tardiness)
+    return mean_waiting_time, mean_tardiness
+
+print(simulate(schedule,10000, params))
 
 #%%
 """
@@ -80,8 +85,16 @@ def objective(schedule,simulations=10000):
     output:
         objective value = 2x(mean tardiness) + mean waiting time
     '''
-    start_times = [i for i,v in enumerate(schedule) if v]
-    schedule_dict = {i: start_times[i]*params['interval'] for i in range(1,params['patients']+1)}
+    start_times = [i for i,v in enumerate(schedule) if v] # index of scheduled appointment start time
+    schedule_dict = {i: start_times[i]*params['interval'] for i in range(1,params['patients']+1)} # dictionary of scheduled start time per patient
+    
+    # simulating the schedule
+    tardiness = []
+    waiting = []
+    for i in range(simulations):
+        
+    
+    
 
 #%%
 """
