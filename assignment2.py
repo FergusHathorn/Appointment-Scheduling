@@ -70,6 +70,18 @@ time. You have a simulation budget of 10000 simulations. Construct yourself an a
 neighborhood and explain your choice also in the  report.
 
 """
+
+def objective(schedule,simulations=10000):
+    '''
+    input: 
+        the schedule of form (1,0,0,1,... etc) in intervals of 5 minutes. 1 represents the start
+        of a proposed appointment, 0 means that an appointment is not scheduled to start in that period.
+    
+    output:
+        objective value = 2x(mean tardiness) + mean waiting time
+    '''
+    schedule_dict = {}
+
 #%%
 """
 c. 
