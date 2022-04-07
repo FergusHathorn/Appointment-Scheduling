@@ -57,8 +57,7 @@ for i in range(100000):
         
     tardiness.append(max(sim_time-params['sim_length'],0))
     waiting.append(waiting_times)
-        
-change = 1
+
 
 #%%
 """
