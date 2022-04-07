@@ -95,6 +95,21 @@ def objective(schedule,simulations=100000,params=params):
     
     return 2*wait + tardiness
     
+"""
+Understanding of sim-opt:
+    create a neighborhood of solutions
+    choose an initial state (maybe the individual schedule)
+    randomly choose another neighbor
+    simulate the same consulting times on each schedule
+    'winner stays on'
+    count how many times each schedule is simulated and also adjust the average score for each schedule
+
+"""
+
+# creating the neighborhood
+
+
+
 
 
 #%%
