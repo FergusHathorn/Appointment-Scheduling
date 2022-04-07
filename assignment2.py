@@ -42,7 +42,7 @@ schedule = {i: (i-1)*params['appt_block_length'] for i in range(1,params['patien
 
 tardiness = []
 waiting = []
-for i in range(100000):
+for i in range(10000):
     waiting_times = []
     finish_times = []
     
