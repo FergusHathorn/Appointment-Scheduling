@@ -57,7 +57,9 @@ for i in range(100000):
         
     tardiness.append(max(sim_time-params['sim_length'],0))
     waiting.append(waiting_times)
-
+    
+mean_waiting_time = np.mean(waiting);print(mean_waiting_time)
+mean_tardiness = np.mean(tardiness);print(mean_tardiness)
 
 #%%
 """
