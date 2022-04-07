@@ -13,6 +13,8 @@ There are no no-shows (all patients show up), patients are on time.
 import numpy as np
 import math
 import time
+from itertools import permutations
+import random
 
 #%%
 """
@@ -43,7 +45,7 @@ schedule = {i: (i-1)*params['appt_block_length'] for i in range(1,params['patien
 def simulate(schedule,simulations, params):
     tardiness = []
     waiting = []
-    for i in range(10000):
+    for i in range(simulations):
         waiting_times = []
         finish_times = []
         
@@ -64,7 +66,7 @@ def simulate(schedule,simulations, params):
     
     return mean_waiting_time, mean_tardiness
 
-print(simulate(schedule,10000, params))
+print(simulate(schedule,1000, params))
 
 #%%
 """
@@ -78,7 +80,7 @@ neighborhood and explain your choice also in the  report.
 
 individual_schedule = [1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0]
 
-def objective(schedule,simulations=100000,params=params):
+def objective(schedule,simulations=1000,params=params):
     '''
     input: 
         the schedule of form (1,0,0,1,... etc) in intervals of 5 minutes. 1 represents the start
@@ -106,12 +108,21 @@ Understanding of sim-opt:
 
 """
 
-# creating the neighborhood
+# creating the neighborhoood
+neighborhood = [individual_schedule.copy()]
+while len(neighborhood) <= 1000:
+    random.shuffle(individual_schedule)
+    if tuple(individual_schedule) not in neighborhood:
+        neighborhood.append(individual_schedule)
 
+neighborhood_dict = {j: (0,objective(neighborhood[j])) for j in range(len(neighborhood))}      
 
+vals = []
+for i in range(len(neighborhood_dict)):
+    vals.append(neighborhood_dict[i][1])
 
-
-
+#full_neighborhood = list(set(tuple(i) for i in neighborhood))
+    
 #%%
 """
 c. 
