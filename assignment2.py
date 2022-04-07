@@ -76,7 +76,9 @@ neighborhood and explain your choice also in the  report.
 
 """
 
-def objective(schedule,simulations=10000):
+individual_schedule = [1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0]
+
+def objective(schedule,simulations=100000,params=params):
     '''
     input: 
         the schedule of form (1,0,0,1,... etc) in intervals of 5 minutes. 1 represents the start
@@ -86,15 +88,14 @@ def objective(schedule,simulations=10000):
         objective value = 2x(mean tardiness) + mean waiting time
     '''
     start_times = [i for i,v in enumerate(schedule) if v] # index of scheduled appointment start time
-    schedule_dict = {i: start_times[i]*params['interval'] for i in range(1,params['patients']+1)} # dictionary of scheduled start time per patient
+    schedule_dict = {i: start_times[i]*params['interval'] for i in range(0,params['patients'])} # dictionary of scheduled start time per patient
     
     # simulating the schedule
-    tardiness = []
-    waiting = []
-    for i in range(simulations):
-        
+    wait,tardiness = simulate(schedule_dict,simulations,params)
     
+    return 2*wait + tardiness
     
+print(objective(individual_schedule)) 
 
 #%%
 """
