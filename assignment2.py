@@ -196,7 +196,7 @@ def CI(optimal_schedule):
   means_of_batches = []
   mean = 0
   while width > mean/100:
-    obj=objective(optimal_schedule,simulations=100)
+    obj=get_objective(optimal_schedule,simulations=100)
     means_of_batches.append(obj)
     n = len(means_of_batches)
     if n>3: # do at least 3 batches
