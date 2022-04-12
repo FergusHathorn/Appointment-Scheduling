@@ -15,6 +15,10 @@ import math
 import time
 from itertools import permutations
 import random
+import scipy.stats
+import statistics
+from statistics import mode
+from statistics import mean
 
 #%%
 """
@@ -80,7 +84,31 @@ neighborhood and explain your choice also in the  report.
 
 individual_schedule = [1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0]
 
-def objective(schedule,simulations=1000,params=params):
+def simulate(schedule,simulations,params,appointment_lengths):
+    tardiness = []
+    waiting = []
+    for i in range(simulations):
+        waiting_times = []
+        finish_times = []
+        
+        sim_time = 0
+        finish_time = 0
+        for patient in schedule:
+            waiting_times.append(max(0,finish_time-schedule[patient]))
+            finish_time = sim_time+params['interval']*round(appointment_lengths[patient]/params['interval'])
+            finish_times.append(finish_time)
+            
+            sim_time = max(finish_time, schedule[patient])
+            
+        tardiness.append(max(sim_time-params['sim_length'],0))
+        waiting.append(waiting_times)
+        
+    mean_waiting_time = np.mean(waiting)
+    mean_tardiness = np.mean(tardiness)
+    
+    return mean_waiting_time, mean_tardiness
+
+def get_objective(schedule,appointment_lengths,params=params,simulations=1):
     '''
     input: 
         the schedule of form (1,0,0,1,... etc) in intervals of 5 minutes. 1 represents the start
@@ -91,9 +119,9 @@ def objective(schedule,simulations=1000,params=params):
     '''
     start_times = [i for i,v in enumerate(schedule) if v] # index of scheduled appointment start time
     schedule_dict = {i: start_times[i]*params['interval'] for i in range(params['patients'])} # dictionary of scheduled start time per patient
-    
+
     # simulating the schedule
-    wait,tardiness = simulate(schedule_dict,simulations,params)
+    wait,tardiness = simulate(schedule_dict,simulations,params,appointment_lengths)
     
     return 2*wait + tardiness
     
@@ -112,13 +140,14 @@ Understanding of sim-opt:
 slots=list(range(len(individual_schedule)))
 blank_schedule = np.zeros(len(individual_schedule))
 neighborhood=[individual_schedule]
-neighborhood_size = 10000
+neighborhood_size = 1000
 while len(neighborhood) <= neighborhood_size:
     appt_slots = random.sample(slots,12)
-    proposed_schedule = blank_schedule.copy()
-    proposed_schedule[appt_slots]=1
-    if tuple(proposed_schedule) not in neighborhood:
-        neighborhood.append(list(proposed_schedule))
+    if len([i for i in appt_slots if i > 18]) <= 3: # just an idea
+        proposed_schedule = blank_schedule.copy()
+        proposed_schedule[appt_slots]=1
+        if tuple(proposed_schedule) not in neighborhood:
+            neighborhood.append(list(proposed_schedule))
         
 # simulating
 neighbors = neighborhood_size
@@ -130,8 +159,9 @@ while budget > 0:
     random_neighbor = random.choice(range(neighbors))
     while random_neighbor == primary:
         random_neighbor = random.choice(range(neighbors))
-    neighbor_obj = objective(neighborhood[random_neighbor],simulations=sim_per_neighbor)
-    primary_obj = objective(neighborhood[primary],simulations=sim_per_neighbor)
+    appointment_lengths = [apt() for i in range(params['patients'])]
+    neighbor_obj = get_objective(neighborhood[random_neighbor],appointment_lengths)
+    primary_obj = get_objective(neighborhood[primary],appointment_lengths)
     scores[primary][0] += 1
     scores[primary][1] += primary_obj
     scores[random_neighbor][0] += 1
@@ -161,6 +191,25 @@ enough to get a small confidence interval. Good solutions are ranked and at maxi
 given according to the ranking.
 
 """
+def CI(optimal_schedule):
+  width = 100000
+  means_of_batches = []
+  mean = 0
+  while width > mean/100:
+    obj=objective(optimal_schedule,simulations=100)
+    means_of_batches.append(obj)
+    n = len(means_of_batches)
+    if n>3: # do at least 3 batches
+      t_value = scipy.stats.t.ppf(1-0.05/2, n-1)
+      width = 2*t_value*np.std(means_of_batches)/math.sqrt(n)
+    mean = np.mean(means_of_batches)
+  CI = [mean-width/2, mean+width/2]
+  return {'mean':mean,'CI':CI, 'width':width,'batches':n}
+#  print("The expected output for allocation", str(buffers), "is", str(mean), "with 95% CI", str(CI))
+#  print("The CI width is", str(width), "and we needed", n, "batches")
+
+results_dict = CI(neighborhood[best_solution])
+
 #%%
 """
 d. 
@@ -168,3 +217,4 @@ Calculate each 10th percentile of the waiting time of each patient, and put them
 the patient number on the x-axis.
 
 """
+
