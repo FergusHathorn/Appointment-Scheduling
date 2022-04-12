@@ -108,20 +108,50 @@ Understanding of sim-opt:
 
 """
 
-# creating the neighborhoood
-neighborhood = [individual_schedule.copy()]
-while len(neighborhood) <= 1000:
-    random.shuffle(individual_schedule)
-    if tuple(individual_schedule) not in neighborhood:
-        neighborhood.append(individual_schedule)
+# creating the neighborhood
+slots=list(range(len(individual_schedule)))
+blank_schedule = np.zeros(len(individual_schedule))
+neighborhood=[individual_schedule]
+neighborhood_size = 10000
+while len(neighborhood) <= neighborhood_size:
+    appt_slots = random.sample(slots,12)
+    proposed_schedule = blank_schedule.copy()
+    proposed_schedule[appt_slots]=1
+    if tuple(proposed_schedule) not in neighborhood:
+        neighborhood.append(list(proposed_schedule))
+        
+# simulating
+neighbors = neighborhood_size
+sim_per_neighbor = 1
+budget = 10000/sim_per_neighbor
+primary = random.choice(range(neighbors))
+scores = {i:[0,0] for i in range(neighbors)}
+while budget > 0:
+    random_neighbor = random.choice(range(neighbors))
+    while random_neighbor == primary:
+        random_neighbor = random.choice(range(neighbors))
+    neighbor_obj = objective(neighborhood[random_neighbor],simulations=sim_per_neighbor)
+    primary_obj = objective(neighborhood[primary],simulations=sim_per_neighbor)
+    scores[primary][0] += 1
+    scores[primary][1] += primary_obj
+    scores[random_neighbor][0] += 1
+    scores[random_neighbor][1] += neighbor_obj
+    if primary_obj <= neighbor_obj:
+        primary = random_neighbor
+    budget -= 1
 
-neighborhood_dict = {j: (0,objective(neighborhood[j])) for j in range(len(neighborhood))}      
+best_solution = np.argmax([scores[i][0] for i in scores])
+print(best_solution)
+print(neighborhood[best_solution])
 
-vals = []
-for i in range(len(neighborhood_dict)):
-    vals.append(neighborhood_dict[i][1])
+'''
+# this isn't actually simopt, but interesting difference
+mean_output = [scores[i][1]/scores[i][0] for i in scores if scores[i][0] != 0]
+idx_min = np.argmin(mean_output)
+idx = [i for i in scores if scores[i][0] != 0][idx_min]
+print(idx)
 
-#full_neighborhood = list(set(tuple(i) for i in neighborhood))
+'''
     
 #%%
 """
