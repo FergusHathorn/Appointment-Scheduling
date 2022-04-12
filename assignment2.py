@@ -57,6 +57,30 @@ def simulate(schedule,simulations, params):
         finish_time = 0
         for patient in schedule:
             waiting_times.append(max(0,finish_time-schedule[patient]))
+            finish_time = sim_time+apt()
+            finish_times.append(finish_time)
+            sim_time = max(finish_time, schedule[patient])
+            
+        tardiness.append(max(sim_time-params['sim_length'],0))
+        waiting.append(waiting_times)
+        
+    mean_waiting_time = np.mean(waiting)
+    mean_tardiness = np.mean(tardiness)
+    
+    return mean_waiting_time, mean_tardiness
+
+'''
+def simulate(schedule,simulations, params):
+    tardiness = []
+    waiting = []
+    for i in range(simulations):
+        waiting_times = []
+        finish_times = []
+        
+        sim_time = 0
+        finish_time = 0
+        for patient in schedule:
+            waiting_times.append(max(0,finish_time-schedule[patient]))
             finish_time = sim_time+params['interval']*round(apt()/params['interval'])
             finish_times.append(finish_time)
             
@@ -69,6 +93,7 @@ def simulate(schedule,simulations, params):
     mean_tardiness = np.mean(tardiness)
     
     return mean_waiting_time, mean_tardiness
+'''
 
 print(simulate(schedule,1000, params))
 
