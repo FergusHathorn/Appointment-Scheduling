@@ -19,6 +19,7 @@ import scipy.stats
 import statistics
 from statistics import mode
 from statistics import mean
+import matplotlib.pyplot as plt
 
 #%%
 """
@@ -44,6 +45,9 @@ params = {
     'appt_block_length':15
     }
 
+#individual_schedule = [1,0,0,2,0,0,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0]
+individual_schedule = [1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0]
+
 schedule = {i: (i-1)*params['appt_block_length'] for i in range(1,params['patients']+1)} # evenly spaced schedule
 
 def simulate(schedule,simulations, params):
@@ -67,35 +71,70 @@ def simulate(schedule,simulations, params):
     mean_waiting_time = np.mean(waiting)
     mean_tardiness = np.mean(tardiness)
     
-    return mean_waiting_time, mean_tardiness
+    return mean_waiting_time, mean_tardiness, np.array(waiting)
 
-'''
-def simulate(schedule,simulations, params):
-    tardiness = []
-    waiting = []
-    for i in range(simulations):
-        waiting_times = []
-        finish_times = []
-        
-        sim_time = 0
-        finish_time = 0
-        for patient in schedule:
-            waiting_times.append(max(0,finish_time-schedule[patient]))
-            finish_time = sim_time+params['interval']*round(apt()/params['interval'])
-            finish_times.append(finish_time)
-            
-            sim_time = max(finish_time, schedule[patient])
-            
-        tardiness.append(max(sim_time-params['sim_length'],0))
-        waiting.append(waiting_times)
-        
-    mean_waiting_time = np.mean(waiting)
-    mean_tardiness = np.mean(tardiness)
+def get_objective(schedule,params=params,simulations=100):
+    '''
+    input: 
+        the schedule of form (1,0,0,1,... etc) in intervals of 5 minutes. 1 represents the start
+        of a proposed appointment, 0 means that an appointment is not scheduled to start in that period.
     
-    return mean_waiting_time, mean_tardiness
+    output:
+        objective value = 2x(mean tardiness) + mean waiting time
+    '''
+    start_times = []
+    for i in range(len(schedule)):
+        if schedule[i]>0:
+            for j in range(int(schedule[i])):
+                start_times.append(i)
+    
+    #start_times = [i for i,v in enumerate(schedule) if v] # index of scheduled appointment start time
+    schedule_dict = {i: start_times[i]*params['interval'] for i in range(params['patients'])} # dictionary of scheduled start time per patient
+
+    # simulating the schedule
+    wait,tardiness,waiting_array = simulate(schedule_dict,simulations,params)
+    
+    return 2*wait + tardiness,wait,tardiness,waiting_array
+
+def CI(sched):
+    obj_batches = []
+    wait_batches = []
+    tardiness_batches = []
+    waiting_array = []
+    
+    mean_obj = 1
+    mean_wait = 1
+    mean_tardiness = 1
+    
+    width = [100000,100000,100000]
+    
+    while max(width[0]/mean_obj,width[1]/mean_wait,width[2]/mean_tardiness) > 0.05:
+      appointment_lengths = [apt() for i in range(params['patients'])] 
+      obj,wait,tardiness,wait_array=get_objective(sched,simulations=100)
+      waiting_array.append(wait_array)
+      obj_batches.append(obj)
+      wait_batches.append(wait)
+      tardiness_batches.append(tardiness)
+      n = len(obj_batches)
+      if n>3: # do at least 3 batches
+        t_value = scipy.stats.t.ppf(1-0.05/2, n-1)
+        width = [2*t_value*np.std(obj_batches)/math.sqrt(n),2*t_value*np.std(wait_batches)/math.sqrt(n),2*t_value*np.std(tardiness_batches)/math.sqrt(n)]
+      mean_obj = np.mean(obj_batches)
+      mean_wait = np.mean(wait_batches)
+      mean_tardiness = np.mean(tardiness_batches)
+  
+    CI_obj = [mean_obj-width[0]/2, mean_obj+width[0]/2]
+    CI_wait = [mean_wait-width[1]/2, mean_wait+width[1]/2]
+    CI_tardiness = [mean_tardiness-width[2]/2, mean_tardiness+width[2]/2]
+    return {'mean':[mean_obj, mean_wait, mean_tardiness],'CI':[CI_obj,CI_wait,CI_tardiness], 'width':width,'batches':n}, waiting_array
+
+'''
+finish_time = sim_time+params['interval']*round(apt()/params['interval'])
 '''
 
-print(simulate(schedule,1000, params))
+print(CI(individual_schedule)[0])
+
+#print(simulate(schedule,10000, params))
 
 #%%
 """
@@ -107,7 +146,6 @@ neighborhood and explain your choice also in the  report.
 
 """
 start_time = time.time()
-individual_schedule = [1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0]
 
 def simopt(schedule,simulations,params,appointment_lengths):
     tardiness = []
@@ -143,7 +181,12 @@ def get_objective_simopt(schedule,appointment_lengths,params=params,simulations=
     output:
         objective value = 2x(mean tardiness) + mean waiting time
     '''
-    start_times = [i for i,v in enumerate(schedule) if v] # index of scheduled appointment start time
+    #start_times = [i for i,v in enumerate(schedule) if v] # index of scheduled appointment start time
+    start_times = []
+    for i in range(len(schedule)):
+        if schedule[i]>0:
+            for j in range(int(schedule[i])):
+                start_times.append(i)
     schedule_dict = {i: start_times[i]*params['interval'] for i in range(params['patients'])} # dictionary of scheduled start time per patient
 
     # simulating the schedule
@@ -168,11 +211,13 @@ blank_schedule = np.zeros(len(individual_schedule))
 neighborhood=[individual_schedule]
 neighborhood_size = 100
 while len(neighborhood) <= neighborhood_size:
-    anchor = random.choice(slots)
     appt_slots = random.sample(slots,12)
+    #appt_slots = random.choices(slots,k=12) # for multiple appts on one time
     if 0 in appt_slots and len([i for i in appt_slots if i >= 34]) <= 0: # len([i for i in appt_slots if i < 18]) >= 6 and
         proposed_schedule = blank_schedule.copy()
-        proposed_schedule[appt_slots]=1
+        for prop in appt_slots:
+            proposed_schedule[prop]+=1
+        #proposed_schedule[appt_slots]=1
         consec_ones = False
         consec_zeros = False
         for i in range(len(proposed_schedule)-2):
@@ -188,10 +233,12 @@ while len(neighborhood) <= neighborhood_size:
                 neighborhood.append(list(proposed_schedule))
 
 neighborhood_time = time.time()
+print('Neighborhood generated')
+print('Sim-opt in progress...')
         
 # simulating
 neighbors = neighborhood_size
-budget = 10000
+budget = 500000
 #primary = random.choice(range(neighbors))
 primary = 0
 scores = {i:[0,0] for i in range(neighbors)}
@@ -227,44 +274,11 @@ given according to the ranking.
 
 """
 
-def get_objective(schedule,params=params,simulations=100):
-    '''
-    input: 
-        the schedule of form (1,0,0,1,... etc) in intervals of 5 minutes. 1 represents the start
-        of a proposed appointment, 0 means that an appointment is not scheduled to start in that period.
-    
-    output:
-        objective value = 2x(mean tardiness) + mean waiting time
-    '''
-    start_times = [i for i,v in enumerate(schedule) if v] # index of scheduled appointment start time
-    schedule_dict = {i: start_times[i]*params['interval'] for i in range(params['patients'])} # dictionary of scheduled start time per patient
+results_dict,full_waiting_array = CI(neighborhood[most_frequent_solution])
 
-    # simulating the schedule
-    wait,tardiness = simulate(schedule_dict,simulations,params)
-    
-    return 2*wait + tardiness
-
-def CI(optimal_schedule):
-  width = 100000
-  means_of_batches = []
-  mean = 0
-  while width > mean/100:
-    appointment_lengths = [apt() for i in range(params['patients'])] 
-    obj=get_objective(optimal_schedule,simulations=100)
-    means_of_batches.append(obj)
-    n = len(means_of_batches)
-    if n>3: # do at least 3 batches
-      t_value = scipy.stats.t.ppf(1-0.05/2, n-1)
-      width = 2*t_value*np.std(means_of_batches)/math.sqrt(n)
-    mean = np.mean(means_of_batches)
-  CI = [mean-width/2, mean+width/2]
-  return {'mean':mean,'CI':CI, 'width':width,'batches':n}
-
-results_dict = CI(neighborhood[most_frequent_solution])
-
-print('Mean objective value: {:.2f}'.format(results_dict['mean']))
-print('CI: {}'.format(results_dict['CI']))
-print('CI is {:.2f}% of the mean'.format(np.divide(100*results_dict['width'],results_dict['mean'])))
+print('Mean objective value: {:.2f}'.format(results_dict['mean'][0]))
+print('CI: {}'.format(results_dict['CI'][0]))
+print('CI is {:.2f}% of the mean'.format(np.divide(100*results_dict['width'][0],results_dict['mean'][0])))
 print('Simulation batches: {:.2f}'.format(results_dict['batches']))
 
 #%%
@@ -274,3 +288,15 @@ Calculate each 10th percentile of the waiting time of each patient, and put them
 the patient number on the x-axis.
 
 """
+wait_times_by_sim = []
+for sim in full_waiting_array:
+    for sub_sim in sim:
+        wait_times_by_sim.append(sub_sim)
+patient_waiting_times = [[i[k] for i in wait_times_by_sim] for k in range(12)]
+
+pct_10 = [np.percentile(i,10) for i in patient_waiting_times]
+
+plt.bar(list(range(1,13)),pct_10)
+plt.title('10th percentile waiting times per patient', fontsize=15)
+plt.xlabel('Patient', fontsize=15)
+plt.ylabel('Waiting time (minutes)', fontsize=15)
