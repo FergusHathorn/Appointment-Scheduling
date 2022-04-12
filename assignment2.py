@@ -13,7 +13,6 @@ There are no no-shows (all patients show up), patients are on time.
 import numpy as np
 import math
 import time
-from itertools import permutations
 import random
 import scipy.stats
 import statistics
