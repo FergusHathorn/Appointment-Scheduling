@@ -106,7 +106,7 @@ time. You have a simulation budget of 10000 simulations. Construct yourself an a
 neighborhood and explain your choice also in the  report.
 
 """
-
+start_time = time.time()
 individual_schedule = [1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0]
 
 def simopt(schedule,simulations,params,appointment_lengths):
@@ -120,7 +120,8 @@ def simopt(schedule,simulations,params,appointment_lengths):
         finish_time = 0
         for patient in schedule:
             waiting_times.append(max(0,finish_time-schedule[patient]))
-            finish_time = sim_time+params['interval']*round(appointment_lengths[patient]/params['interval'])
+            finish_time = sim_time+appointment_lengths[patient]
+            #finish_time = sim_time+params['interval']*round(appointment_lengths[patient]/params['interval'])
             finish_times.append(finish_time)
             
             sim_time = max(finish_time, schedule[patient])
@@ -165,21 +166,28 @@ Understanding of sim-opt:
 slots=list(range(len(individual_schedule)))
 blank_schedule = np.zeros(len(individual_schedule))
 neighborhood=[individual_schedule]
-neighborhood_size = 10000
+neighborhood_size = 100
 while len(neighborhood) <= neighborhood_size:
     anchor = random.choice(slots)
     appt_slots = random.sample(slots,12)
-    if len([i for i in appt_slots if i < 18]) >= 6 and 0 in appt_slots: 
+    if 0 in appt_slots and len([i for i in appt_slots if i >= 34]) <= 0: # len([i for i in appt_slots if i < 18]) >= 6 and
         proposed_schedule = blank_schedule.copy()
         proposed_schedule[appt_slots]=1
-        three_consec = False
+        consec_ones = False
+        consec_zeros = False
         for i in range(len(proposed_schedule)-2):
             if sum(proposed_schedule[i:i+3]) == 3:
-                three_consec = True
+                consec_ones = True
                 break
-        if not three_consec:
+        for i in range(len(proposed_schedule)-3):
+            if sum(1-j for j in proposed_schedule[i:i+4]) == 4:
+                consec_zeros = True
+                break
+        if not consec_ones and not consec_zeros:
             if tuple(proposed_schedule) not in neighborhood:
                 neighborhood.append(list(proposed_schedule))
+
+neighborhood_time = time.time()
         
 # simulating
 neighbors = neighborhood_size
@@ -202,18 +210,13 @@ while budget > 0:
         primary = random_neighbor
     budget -= 1
 
-best_solution = np.argmax([scores[i][0] for i in scores])
-print(best_solution)
-print(neighborhood[best_solution])
+most_frequent_solution = np.argmax([scores[i][0] for i in scores])
 
-'''
-# this isn't actually simopt, but interesting difference
-mean_output = [scores[i][1]/scores[i][0] for i in scores if scores[i][0] != 0]
-idx_min = np.argmin(mean_output)
-idx = [i for i in scores if scores[i][0] != 0][idx_min]
-print(idx)
+sim_opt_time = time.time()
 
-'''
+print('Time for generating neighborhood: {:.2f}'.format(neighborhood_time-start_time))
+print('Time for sim-opt: {:.2f}'.format(sim_opt_time-neighborhood_time))
+print('Total time: {:.2f}'.format(sim_opt_time-start_time))
     
 #%%
 """
@@ -257,8 +260,12 @@ def CI(optimal_schedule):
   CI = [mean-width/2, mean+width/2]
   return {'mean':mean,'CI':CI, 'width':width,'batches':n}
 
-results_dict = CI(neighborhood[best_solution])
-print(results_dict)
+results_dict = CI(neighborhood[most_frequent_solution])
+
+print('Mean objective value: {:.2f}'.format(results_dict['mean']))
+print('CI: {}'.format(results_dict['CI']))
+print('CI is {:.2f}% of the mean'.format(np.divide(100*results_dict['width'],results_dict['mean'])))
+print('Simulation batches: {:.2f}'.format(results_dict['batches']))
 
 #%%
 """
