@@ -21,21 +21,22 @@ from statistics import mean
 import matplotlib.pyplot as plt
 
 #%%
-"""
-a.
-Use simulation to estimate the expected average patient waiting time and the tardiness 
-of the doctor (the time the doctor is busy after the end of the appointment block), first 
-for the individual schedule (where patients are equally spaced).
+# """
+# a.
+# Use simulation to estimate the expected average patient waiting time and the tardiness 
+# of the doctor (the time the doctor is busy after the end of the appointment block), first 
+# for the individual schedule (where patients are equally spaced).
 
-"""
+# """
 
-# calculating mu and sigma: https://en.wikipedia.org/wiki/Log-normal_distribution
-ln_mu = math.log((13**2)/np.sqrt(13**2 + 5**2))
-ln_sigma = np.sqrt(math.log(1 + (5**2)/(13**2)))
+# # calculating mu and sigma: https://en.wikipedia.org/wiki/Log-normal_distribution
+mu_of_normal = math.log(13**2/np.sqrt(13**2 + 5**2))
+sigma_of_normal = np.sqrt(math.log(1 + 5**2/13**2))
 
 # function to return an appointment length
-def apt(mu = ln_mu, sig = ln_sigma):
+def apt(mu = mu_of_normal, sig = sigma_of_normal):
     return np.random.lognormal(mean=mu,sigma=sig)
+
 
 params = {
     'patients':12,
@@ -44,7 +45,7 @@ params = {
     'appt_block_length':15
     }
 
-#individual_schedule = [1,0,0,2,0,0,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0]
+# #individual_schedule = [1,0,0,2,0,0,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0]
 individual_schedule = [1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0]
 
 schedule = {i: (i-1)*params['appt_block_length'] for i in range(1,params['patients']+1)} # evenly spaced schedule
@@ -61,7 +62,6 @@ def simulate(schedule,simulations, params):
         for patient in schedule:
             waiting_times.append(max(0,finish_time-schedule[patient])) # if no wait, then append 0, else append the time between previous finish and scheduled start
             finish_time = sim_time+apt() # calculate new finish time, which is current sim time + appointment length
-            finish_times.append(finish_time)
             sim_time = max(finish_time, schedule[patient]) # move simulation to whatever is last, the finish time (just calculated) or the next patient scheduled
             
         tardiness.append(max(sim_time-params['sim_length'],0)) # if finished after 180 min, append the time at which the last patient finished their appt
@@ -79,7 +79,7 @@ def get_objective(schedule,params=params,simulations=100):
         of a proposed appointment, 0 means that an appointment is not scheduled to start in that period.
     
     output:
-        objective value = 2x(mean tardiness) + mean waiting time
+        objective value = 2x(mean tardiness) + mean waiting time and other stuff
     '''
     start_times = []
     for i in range(len(schedule)):
@@ -93,7 +93,7 @@ def get_objective(schedule,params=params,simulations=100):
     # simulating the schedule
     wait,tardiness,waiting_array = simulate(schedule_dict,simulations,params)
     
-    return 2*wait + tardiness,wait,tardiness,waiting_array
+    return wait + 2*tardiness,wait,tardiness,waiting_array
 
 def CI(sched):
     obj_batches = []
@@ -107,8 +107,7 @@ def CI(sched):
     
     width = [100000,100000,100000]
     
-    while max(width[0]/mean_obj,width[1]/mean_wait,width[2]/mean_tardiness) > 0.05:
-      appointment_lengths = [apt() for i in range(params['patients'])] 
+    while max(width[0]/mean_obj,width[1]/mean_wait,width[2]/mean_tardiness) > 0.20:
       obj,wait,tardiness,wait_array=get_objective(sched,simulations=100)
       waiting_array.append(wait_array)
       obj_batches.append(obj)
@@ -210,9 +209,9 @@ blank_schedule = np.zeros(len(individual_schedule))
 neighborhood=[individual_schedule]
 neighborhood_size = 100
 while len(neighborhood) <= neighborhood_size:
-    appt_slots = random.sample(slots,12)
-    #appt_slots = random.choices(slots,k=12) # for multiple appts on one time
-    if 0 in appt_slots and len([i for i in appt_slots if i >= 34]) <= 0: # len([i for i in appt_slots if i < 18]) >= 6 and
+    #appt_slots = random.sample(slots,12)
+    appt_slots = random.choices(slots,k=12) # for multiple appts on one time
+    if 0 in appt_slots and len([i for i in appt_slots if i >= 34]) == 0: # len([i for i in appt_slots if i < 18]) >= 6 and
         proposed_schedule = blank_schedule.copy()
         for prop in appt_slots:
             proposed_schedule[prop]+=1
@@ -226,7 +225,7 @@ while len(neighborhood) <= neighborhood_size:
                     consec_ones = True
                     break
             for i in range(len(proposed_schedule)-3):
-                if sum(1-j for j in proposed_schedule[i:i+4]) == 4:
+                if sum(j for j in proposed_schedule[i:i+4]) == 0:
                     consec_zeros = True
                     break
             if not consec_ones and not consec_zeros:
