@@ -56,15 +56,15 @@ def simulate(schedule,simulations, params):
         waiting_times = []
         finish_times = []
         
-        sim_time = 0
-        finish_time = 0
+        sim_time = 0 # start at t=0
+        finish_time = 0 # start at 0
         for patient in schedule:
-            waiting_times.append(max(0,finish_time-schedule[patient]))
-            finish_time = sim_time+apt()
+            waiting_times.append(max(0,finish_time-schedule[patient])) # if no wait, then append 0, else append the time between previous finish and scheduled start
+            finish_time = sim_time+apt() # calculate new finish time, which is current sim time + appointment length
             finish_times.append(finish_time)
-            sim_time = max(finish_time, schedule[patient])
+            sim_time = max(finish_time, schedule[patient]) # move simulation to whatever is last, the finish time (just calculated) or the next patient scheduled
             
-        tardiness.append(max(sim_time-params['sim_length'],0))
+        tardiness.append(max(sim_time-params['sim_length'],0)) # if finished after 180 min, append the time at which the last patient finished their appt
         waiting.append(waiting_times)
         
     mean_waiting_time = np.mean(waiting)
@@ -217,19 +217,21 @@ while len(neighborhood) <= neighborhood_size:
         for prop in appt_slots:
             proposed_schedule[prop]+=1
         #proposed_schedule[appt_slots]=1
-        consec_ones = False
-        consec_zeros = False
-        for i in range(len(proposed_schedule)-2):
-            if sum(proposed_schedule[i:i+3]) == 3:
-                consec_ones = True
-                break
-        for i in range(len(proposed_schedule)-3):
-            if sum(1-j for j in proposed_schedule[i:i+4]) == 4:
-                consec_zeros = True
-                break
-        if not consec_ones and not consec_zeros:
-            if tuple(proposed_schedule) not in neighborhood:
-                neighborhood.append(list(proposed_schedule))
+        if tuple(proposed_schedule) not in neighborhood:
+            #neighborhood.append(list(proposed_schedule))
+            consec_ones = False
+            consec_zeros = False
+            for i in range(len(proposed_schedule)-2):
+                if sum(proposed_schedule[i:i+3]) == 3:
+                    consec_ones = True
+                    break
+            for i in range(len(proposed_schedule)-3):
+                if sum(1-j for j in proposed_schedule[i:i+4]) == 4:
+                    consec_zeros = True
+                    break
+            if not consec_ones and not consec_zeros:
+                #if tuple(proposed_schedule) not in neighborhood:
+                neighborhood.append(list(proposed_schedule))     
 
 neighborhood_time = time.time()
 print('Neighborhood generated')
@@ -252,7 +254,8 @@ while budget > 0:
     scores[primary][1] += primary_obj
     scores[random_neighbor][0] += 1
     scores[random_neighbor][1] += neighbor_obj
-    if primary_obj < neighbor_obj:
+    if scores[primary][1]/scores[primary][0] < scores[random_neighbor][1]/scores[random_neighbor][0]:
+    #if primary_obj < neighbor_obj:
         primary = random_neighbor
     budget -= 1
 
@@ -293,9 +296,19 @@ for sim in full_waiting_array:
         wait_times_by_sim.append(sub_sim)
 patient_waiting_times = [[i[k] for i in wait_times_by_sim] for k in range(12)]
 
-pct_10 = [np.percentile(i,10) for i in patient_waiting_times]
-
+pcts = []
+for j in [10,20,30,40,50,60,70,80,90]:
+    pcts.append([np.percentile(i,j) for i in patient_waiting_times])
+    
+for i in pcts:
+    plt.plot(i)
+    plt.title('Percentile waiting times per patient', fontsize=15)
+    plt.xlabel('Patient', fontsize=15)
+    plt.ylabel('Waiting time (minutes)', fontsize=15)
+'''
 plt.bar(list(range(1,13)),pct_10)
 plt.title('10th percentile waiting times per patient', fontsize=15)
 plt.xlabel('Patient', fontsize=15)
 plt.ylabel('Waiting time (minutes)', fontsize=15)
+'''
+
