@@ -128,8 +128,14 @@ def CI(sched):
     
     results_dict={'mean':[mean_obj, mean_wait, mean_tardiness],'CI':[CI_obj,CI_wait,CI_tardiness], 'width':width,'batches':n}
     print('Mean objective value: {:.2f}'.format(results_dict['mean'][0]))
-    print('CI: {}'.format(results_dict['CI'][0]))
-    print('CI is {:.2f}% of the mean'.format(np.divide(100*results_dict['width'][0],results_dict['mean'][0])))
+    print('CI for objective: {}'.format(results_dict['CI'][0]))
+    #print('CI is {:.2f}% of the mean'.format(np.divide(100*results_dict['width'][0],results_dict['mean'][0])))
+    print('Mean waiting time: {:.2f}'.format(results_dict['mean'][1]))
+    print('CI for waiting time: {}'.format(results_dict['CI'][1]))
+    #print('CI is {:.2f}% of the mean'.format(np.divide(100*results_dict['width'][1],results_dict['mean'][1])))
+    print('Mean tardiness: {:.2f}'.format(results_dict['mean'][2]))
+    print('CI for tardiness: {}'.format(results_dict['CI'][2]))
+    #print('CI is {:.2f}% of the mean'.format(np.divide(100*results_dict['width'][2],results_dict['mean'][2])))
     print('Simulation batches: {:.2f}'.format(results_dict['batches']))
     #return results_dict
 
@@ -137,9 +143,9 @@ def CI(sched):
 finish_time = sim_time+params['interval']*round(apt()/params['interval'])
 '''
 
-#print(CI(individual_schedule)[0])
+CI(individual_schedule)
 
-#print(simulate(schedule,10000, params))
+mean_waiting_time, mean_tardiness, waiting = simulate(schedule,10000, params)
 
 #%%
 """
@@ -205,7 +211,6 @@ Understanding of sim-opt:
     simulate the same consulting times on each schedule
     'winner stays on'
     count how many times each schedule is simulated and also adjust the average score for each schedule
-
 """
 
     
@@ -217,27 +222,51 @@ def get_neighbour(schedule):
     neighbour = schedule.copy()
     # pick a random interval where there is a patient:
 
-    index = random.choice([index for index,n_patients in enumerate(schedule) if n_patients > 0]) 
-    # pick a new interval for selected patient:
-    
-    if index != 0 and index != 35:
-        index2 = random.choice([-1,1])+index
-    elif index == 0:
-        index2 = index+1
-    else:
-        index2 = index-1
-    
-    #index2 = random.choice([i for i in range(34) if i!=index])
+    not_acceptable = True
+    while not_acceptable:
+        neighbour = schedule.copy()
+        index = random.choice([index for index,n_patients in enumerate(schedule) if n_patients > 0 and index not in tuple([0,34,35])]) 
+        # pick a new interval for selected patient:
         
-    neighbour[index] -= 1
-    neighbour[index2] += 1
-
+        #if index != 0 and index != 35:
+            #index2 = random.choice([-1,1])+index
+        if index != 1 and index != 33:
+            index2 = random.choice([-1,1])+index
+        elif index == 1:
+            index2 = index+1
+        elif index == 33:
+            index2 = index-1
+        
+        '''
+        elif index == 0:
+            index2 = index+1
+        else:
+            index2 = index-1
+        '''
+        
+        #index2 = random.choice([i for i in range(1,34) if i!=index]) # possibly add condition for 2s
+            
+        neighbour[index] -= 1
+        neighbour[index2] += 1
+        
+        consec_ones = False
+        consec_zeros = False
+        for i in range(len(neighbour)-3):
+            if sum(neighbour[i:i+3]) > 2:
+                consec_ones = True
+                break
+        for i in range(len(neighbour)-4):
+            if sum(neighbour[i:i+4]) == 0:
+                consec_zeros = True
+                break
+        if not consec_ones and not consec_zeros:
+            not_acceptable = False
 
     return neighbour
     
 #%%
 start_time=time.time()
-budget = 5000
+budget = 1000000
 scores = {tuple(individual_schedule): {'count': 0, 'mean': 0, 'sum': 0}} # save n(x), mean objective value and sum of objective values
 current = individual_schedule
 n_jumps = 0
@@ -245,29 +274,35 @@ jump = []
 while budget > 0:
         
     neighbour = get_neighbour(current)
-    appointment_lengths = [apt() for i in range(params['patients'])]
-    _,_,primary_obj = simopt(current,appointment_lengths,simulations=100)
-    _,_,neighbour_obj = simopt(neighbour,appointment_lengths,simulations=100)
+    primary_objs,neighbour_objs = 0,0
+    for sim in range(10):
+        appointment_lengths = [apt() for i in range(params['patients'])]
+        _,_,primary_obj = simopt(current,appointment_lengths,simulations=1)
+        _,_,neighbour_obj = simopt(neighbour,appointment_lengths,simulations=1)
+        primary_objs+=primary_obj
+        neighbour_objs+=neighbour_obj
+    mean_primary_obj = primary_objs/10
+    mean_neighbour_objs = neighbour_objs/10
     
     if tuple(neighbour) not in scores:
         scores[tuple(neighbour)] = {'count': 0, 'mean': 0, 'sum': 0}
         
     scores[tuple(current)]['count'] += 1
     scores[tuple(neighbour)]['count'] += 1
-    scores[tuple(current)]['sum'] += primary_obj
-    scores[tuple(neighbour)]['sum'] += neighbour_obj
+    scores[tuple(current)]['sum'] += mean_primary_obj #primary_obj
+    scores[tuple(neighbour)]['sum'] += mean_neighbour_objs #neighbour_obj
     scores[tuple(current)]['mean'] = scores[tuple(current)]['sum']/scores[tuple(current)]['count']
     scores[tuple(neighbour)]['mean'] = scores[tuple(neighbour)]['sum']/scores[tuple(neighbour)]['count']
     if scores[tuple(neighbour)]['mean'] < scores[tuple(current)]['mean']:
         jump.append(1)
-        current = neighbour
+        current = neighbour.copy()
     else:
         jump.append(0)
-    budget -= 1
+    budget -= 2*10
 
 print("Total time: {:.2f}".format(time.time()-start_time))
 #%%
-xx = [i for i in scores if scores[i]['count'] >= 10]
+xx = [i for i in scores if scores[i]['count'] >= 15]
     
 #%%
 schedule_with_counts = {schedule:scores[schedule]['count'] for schedule in scores}
@@ -279,8 +314,14 @@ schedule_with_objective = {schedule:scores[schedule]['mean'] for schedule in sco
 optimal_schedule2 = min(schedule_with_objective,key=schedule_with_objective.get)
 scores[optimal_schedule2]
 scores[optimal_schedule]
+print('Optimal Schedule')
 CI(optimal_schedule)
-CI(optimal_schedule2)
+print('---------------------')
+print('Individual Schedule')
+CI(individual_schedule)
+#CI(optimal_schedule2)
+
+scores[optimal_schedule]
 
 #%%
 # simulating
