@@ -60,9 +60,7 @@ def schedule_to_dict(schedule):
     schedule_dict = {i: start_times[i]*params['interval'] for i in range(params['patients'])} # dictionary of scheduled start time per patient
     return schedule_dict
 
-# #individual_schedule = [1,0,0,2,0,0,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0]
 individual_schedule = [1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0]
-#schedule = schedule_to_dict(individual_schedule)
 
 def simulate(schedulelist,appointment_lengths = None,simulations=1,params=params):
     schedule = schedule_to_dict(schedulelist)
@@ -78,11 +76,8 @@ def simulate(schedulelist,appointment_lengths = None,simulations=1,params=params
         finish_time = 0
         for patient in schedule:
             sim_time = max(finish_time, schedule[patient])
-            #waiting_times.append(max(0,finish_time-schedule[patient]))
             waiting_times.append(max(0,sim_time-schedule[patient]))
-            #finish_time = sim_time+appointment_lengths[patient]
             finish_time = sim_time+appointment_lengths[patient]
-            #sim_time = max(finish_time, schedule[patient])
             
         tardiness.append(max(finish_time-params['sim_length'],0))
         waiting.append(waiting_times)
@@ -126,11 +121,9 @@ def CI(sched):
     print('Mean objective value: {:.2f}'.format(results_dict['mean'][0]))
     print('CI: {}'.format(results_dict['CI'][0]))
     print('CI is {:.2f}% of the mean'.format(np.divide(100*width[0],mean_obj)))
-    
     print('Mean waiting time: {:.2f}'.format(mean_wait))
     print('CI: {}'.format(CI_wait))
     print('CI is {:.2f}% of the mean'.format(np.divide(100*width[1],mean_wait)))
-    
     print('Mean tardiness: {:.2f}'.format(mean_tardiness))
     print('CI: {}'.format(CI_tardiness))
     print('CI is {:.2f}% of the mean'.format(np.divide(100*width[2],mean_tardiness)))
@@ -167,9 +160,7 @@ def get_neighbour(schedule):
         neighbour = schedule.copy()
         index = random.choice([index for index,n_patients in enumerate(schedule) if n_patients > 0 and index not in tuple([0,34,35])]) 
         # pick a new interval for selected patient:
-        
-        #if index != 0 and index != 35:
-            #index2 = random.choice([-1,1])+index
+
         if index != 1 and index != 33:
             index2 = random.choice([-1,1])+index
         elif index == 1:
@@ -223,15 +214,15 @@ while budget > 0:
         primary_objs+=primary_obj
         neighbour_objs+=neighbour_obj
     mean_primary_obj = primary_objs/sims
-    mean_neighbour_objs = neighbour_objs/sims
+    mean_neighbour_obj = neighbour_objs/sims
     
     if tuple(neighbour) not in scores:
         scores[tuple(neighbour)] = {'count': 0, 'mean': 0, 'sum': 0}
         
     scores[tuple(current)]['count'] += 1
     scores[tuple(neighbour)]['count'] += 1
-    scores[tuple(current)]['sum'] += primary_obj
-    scores[tuple(neighbour)]['sum'] += neighbour_obj
+    scores[tuple(current)]['sum'] += mean_primary_obj
+    scores[tuple(neighbour)]['sum'] += mean_neighbour_obj
     scores[tuple(current)]['mean'] = scores[tuple(current)]['sum']/scores[tuple(current)]['count']
     scores[tuple(neighbour)]['mean'] = scores[tuple(neighbour)]['sum']/scores[tuple(neighbour)]['count']
     if scores[tuple(neighbour)]['mean'] < scores[tuple(current)]['mean']:
@@ -253,8 +244,12 @@ schedule_with_objective = {schedule:scores[schedule]['mean'] for schedule in sco
 optimal_schedule2 = min(schedule_with_objective,key=schedule_with_objective.get)
 scores[optimal_schedule2]
 scores[optimal_schedule]
-results_dict,wait_batches = CI(optimal_schedule)
+print('-------------------')
+CI(optimal_schedule)
+print('-------------------')
 CI(optimal_schedule2)
+print('-------------------')
+CI(individual_schedule)
 
 #%%
 """
