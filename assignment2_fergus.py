@@ -167,7 +167,6 @@ Understanding of sim-opt:
 
 """
 
-start_time = time.time()    
 
 def get_neighbour(schedule):
     ''' generate a neighbour from the neighbourhood of the current schedule
@@ -176,37 +175,68 @@ def get_neighbour(schedule):
     neighbour = schedule.copy()
     # pick a random interval where there is a patient:
 
-    index = random.choice([index for index,n_patients in enumerate(schedule) if n_patients > 0]) 
-    # pick a new interval for selected patient:
-    
-    if index != 0 and index != 35:
-        index2 = random.choice([-1,1])+index
-    elif index == 0:
-        index2 = index+1
-    else:
-        index2 = index-1
-    
-    #index2 = random.choice([i for i in range(34) if i!=index])
+    not_acceptable = True
+    while not_acceptable:
+        neighbour = schedule.copy()
+        index = random.choice([index for index,n_patients in enumerate(schedule) if n_patients > 0 and index not in tuple([0,34,35])]) 
+        # pick a new interval for selected patient:
         
-    neighbour[index] -= 1
-    neighbour[index2] += 1
-
+        #if index != 0 and index != 35:
+            #index2 = random.choice([-1,1])+index
+        if index != 1 and index != 33:
+            index2 = random.choice([-1,1])+index
+        elif index == 1:
+            index2 = index+1
+        elif index == 33:
+            index2 = index-1
+        
+        '''
+        elif index == 0:
+            index2 = index+1
+        else:
+            index2 = index-1
+        '''
+        
+        #index2 = random.choice([i for i in range(1,34) if i!=index]) # possibly add condition for 2s
+            
+        neighbour[index] -= 1
+        neighbour[index2] += 1
+        
+        consec_ones = False
+        consec_zeros = False
+        for i in range(len(neighbour)-3):
+            if sum(neighbour[i:i+3]) > 2:
+                consec_ones = True
+                break
+        for i in range(len(neighbour)-4):
+            if sum(neighbour[i:i+4]) == 0:
+                consec_zeros = True
+                break
+        if not consec_ones and not consec_zeros:
+            not_acceptable = False
 
     return neighbour
     
 #%%
 start_time=time.time()
-budget = 5000
 scores = {tuple(individual_schedule): {'count': 0, 'mean': 0, 'sum': 0}} # save n(x), mean objective value and sum of objective values
 current = individual_schedule
 n_jumps = 0
 jump = []
+sims = 10
+budget = 1000000/(2*sims)
 while budget > 0:
         
     neighbour = get_neighbour(current)
-    appointment_lengths = [apt() for i in range(params['patients'])]
-    primary_obj,_,_ = simulate(current,appointment_lengths,simulations=100)
-    neighbour_obj,_,_ = simulate(neighbour,appointment_lengths,simulations=100)
+    primary_objs,neighbour_objs = 0,0
+    for sim in range(sims):
+        appointment_lengths = [apt() for i in range(params['patients'])]
+        _,_,primary_obj = simopt(current,appointment_lengths=appointment_lengths,simulations=1)
+        _,_,neighbour_obj = simopt(neighbour,appointment_lengths=appointment_lengths,simulations=1)
+        primary_objs+=primary_obj
+        neighbour_objs+=neighbour_obj
+    mean_primary_obj = primary_objs/sims
+    mean_neighbour_objs = neighbour_objs/sims
     
     if tuple(neighbour) not in scores:
         scores[tuple(neighbour)] = {'count': 0, 'mean': 0, 'sum': 0}
@@ -219,14 +249,12 @@ while budget > 0:
     scores[tuple(neighbour)]['mean'] = scores[tuple(neighbour)]['sum']/scores[tuple(neighbour)]['count']
     if scores[tuple(neighbour)]['mean'] < scores[tuple(current)]['mean']:
         jump.append(1)
-        current = neighbour
+        current = neighbour.copy()
     else:
         jump.append(0)
     budget -= 1
 
 print("Total time: {:.2f}".format(time.time()-start_time))
-#%%
-xx = [i for i in scores if scores[i]['count'] >= 10]
     
 #%%
 schedule_with_counts = {schedule:scores[schedule]['count'] for schedule in scores}
