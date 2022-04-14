@@ -21,21 +21,22 @@ from statistics import mean
 import matplotlib.pyplot as plt
 
 #%%
-"""
-a.
-Use simulation to estimate the expected average patient waiting time and the tardiness 
-of the doctor (the time the doctor is busy after the end of the appointment block), first 
-for the individual schedule (where patients are equally spaced).
+# """
+# a.
+# Use simulation to estimate the expected average patient waiting time and the tardiness 
+# of the doctor (the time the doctor is busy after the end of the appointment block), first 
+# for the individual schedule (where patients are equally spaced).
 
-"""
+# """
 
-# calculating mu and sigma: https://en.wikipedia.org/wiki/Log-normal_distribution
-ln_mu = math.log((13**2)/np.sqrt(13**2 + 5**2))
-ln_sigma = np.sqrt(math.log(1 + (5**2)/(13**2)))
+# # calculating mu and sigma: https://en.wikipedia.org/wiki/Log-normal_distribution
+mu_of_normal = math.log(13**2/np.sqrt(13**2 + 5**2))
+sigma_of_normal = np.sqrt(math.log(1 + 5**2./13**2))
 
 # function to return an appointment length
-def apt(mu = ln_mu, sig = ln_sigma):
+def apt(mu = mu_of_normal, sig = sigma_of_normal):
     return np.random.lognormal(mean=mu,sigma=sig)
+
 
 params = {
     'patients':12,
@@ -44,7 +45,7 @@ params = {
     'appt_block_length':15
     }
 
-#individual_schedule = [1,0,0,2,0,0,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0]
+# #individual_schedule = [1,0,0,2,0,0,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0]
 individual_schedule = [1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0]
 
 schedule = {i: (i-1)*params['appt_block_length'] for i in range(1,params['patients']+1)} # evenly spaced schedule
@@ -59,12 +60,12 @@ def simulate(schedule,simulations, params):
         sim_time = 0 # start at t=0
         finish_time = 0 # start at 0
         for patient in schedule:
-            waiting_times.append(max(0,finish_time-schedule[patient])) # if no wait, then append 0, else append the time between previous finish and scheduled start
-            finish_time = sim_time+apt() # calculate new finish time, which is current sim time + appointment length
-            finish_times.append(finish_time)
             sim_time = max(finish_time, schedule[patient]) # move simulation to whatever is last, the finish time (just calculated) or the next patient scheduled
+            waiting_times.append(max(0,sim_time-schedule[patient])) # if no wait, then append 0, else append the time between previous finish and scheduled start
+            finish_time = sim_time+apt() # calculate new finish time, which is current sim time + appointment length
+            #sim_time = max(finish_time, schedule[patient]) # move simulation to whatever is last, the finish time (just calculated) or the next patient scheduled
             
-        tardiness.append(max(sim_time-params['sim_length'],0)) # if finished after 180 min, append the time at which the last patient finished their appt
+        tardiness.append(max(finish_time-params['sim_length'],0)) # if finished after 180 min, append the time at which the last patient finished their appt
         waiting.append(waiting_times)
         
     mean_waiting_time = np.mean(waiting)
@@ -79,7 +80,7 @@ def get_objective(schedule,params=params,simulations=100):
         of a proposed appointment, 0 means that an appointment is not scheduled to start in that period.
     
     output:
-        objective value = 2x(mean tardiness) + mean waiting time
+        objective value = 2x(mean tardiness) + mean waiting time and other stuff
     '''
     start_times = []
     for i in range(len(schedule)):
@@ -93,7 +94,7 @@ def get_objective(schedule,params=params,simulations=100):
     # simulating the schedule
     wait,tardiness,waiting_array = simulate(schedule_dict,simulations,params)
     
-    return 2*wait + tardiness,wait,tardiness,waiting_array
+    return wait + 2*tardiness,wait,tardiness,waiting_array
 
 def CI(sched):
     obj_batches = []
@@ -107,8 +108,7 @@ def CI(sched):
     
     width = [100000,100000,100000]
     
-    while max(width[0]/mean_obj,width[1]/mean_wait,width[2]/mean_tardiness) > 0.05:
-      appointment_lengths = [apt() for i in range(params['patients'])] 
+    while max(width[0]/mean_obj,width[1]/mean_wait,width[2]/mean_tardiness) > 0.20:
       obj,wait,tardiness,wait_array=get_objective(sched,simulations=100)
       waiting_array.append(wait_array)
       obj_batches.append(obj)
@@ -125,13 +125,19 @@ def CI(sched):
     CI_obj = [mean_obj-width[0]/2, mean_obj+width[0]/2]
     CI_wait = [mean_wait-width[1]/2, mean_wait+width[1]/2]
     CI_tardiness = [mean_tardiness-width[2]/2, mean_tardiness+width[2]/2]
-    return {'mean':[mean_obj, mean_wait, mean_tardiness],'CI':[CI_obj,CI_wait,CI_tardiness], 'width':width,'batches':n}, waiting_array
+    
+    results_dict={'mean':[mean_obj, mean_wait, mean_tardiness],'CI':[CI_obj,CI_wait,CI_tardiness], 'width':width,'batches':n}
+    print('Mean objective value: {:.2f}'.format(results_dict['mean'][0]))
+    print('CI: {}'.format(results_dict['CI'][0]))
+    print('CI is {:.2f}% of the mean'.format(np.divide(100*results_dict['width'][0],results_dict['mean'][0])))
+    print('Simulation batches: {:.2f}'.format(results_dict['batches']))
+    #return results_dict
 
 '''
 finish_time = sim_time+params['interval']*round(apt()/params['interval'])
 '''
 
-print(CI(individual_schedule)[0])
+#print(CI(individual_schedule)[0])
 
 #print(simulate(schedule,10000, params))
 
@@ -146,7 +152,23 @@ neighborhood and explain your choice also in the  report.
 """
 start_time = time.time()
 
-def simopt(schedule,simulations,params,appointment_lengths):
+def schedule_to_dict(schedule):
+    '''
+    input: 
+        the schedule of form (1,0,0,1,... etc) in intervals of 5 minutes.
+    output:
+        dictionary with patients and start times: {1: 0, 2: 15, 3: 30.....}
+    '''
+    start_times = []
+    for i in range(len(schedule)):
+        if schedule[i]>0:
+            for j in range(int(schedule[i])):
+                start_times.append(i)
+    schedule_dict = {i: start_times[i]*params['interval'] for i in range(params['patients'])} # dictionary of scheduled start time per patient
+    return schedule_dict
+    
+def simopt(schedulelist,appointment_lengths,simulations=1,params=params):
+    schedule = schedule_to_dict(schedulelist)
     tardiness = []
     waiting = []
     for i in range(simulations):
@@ -156,43 +178,25 @@ def simopt(schedule,simulations,params,appointment_lengths):
         sim_time = 0
         finish_time = 0
         for patient in schedule:
-            waiting_times.append(max(0,finish_time-schedule[patient]))
+            sim_time = max(finish_time, schedule[patient])
+            #waiting_times.append(max(0,finish_time-schedule[patient]))
+            waiting_times.append(max(0,sim_time-schedule[patient]))
+            #finish_time = sim_time+appointment_lengths[patient]
             finish_time = sim_time+appointment_lengths[patient]
-            #finish_time = sim_time+params['interval']*round(appointment_lengths[patient]/params['interval'])
             finish_times.append(finish_time)
             
-            sim_time = max(finish_time, schedule[patient])
+            #sim_time = max(finish_time, schedule[patient])
             
-        tardiness.append(max(sim_time-params['sim_length'],0))
+        tardiness.append(max(finish_time-params['sim_length'],0))
         waiting.append(waiting_times)
         
     mean_waiting_time = np.mean(waiting)
     mean_tardiness = np.mean(tardiness)
+    objective_value = 2*mean_tardiness + mean_waiting_time
     
-    return mean_waiting_time, mean_tardiness
+    return mean_waiting_time, mean_tardiness, objective_value
 
-def get_objective_simopt(schedule,appointment_lengths,params=params,simulations=1):
-    '''
-    input: 
-        the schedule of form (1,0,0,1,... etc) in intervals of 5 minutes. 1 represents the start
-        of a proposed appointment, 0 means that an appointment is not scheduled to start in that period.
-    
-    output:
-        objective value = 2x(mean tardiness) + mean waiting time
-    '''
-    #start_times = [i for i,v in enumerate(schedule) if v] # index of scheduled appointment start time
-    start_times = []
-    for i in range(len(schedule)):
-        if schedule[i]>0:
-            for j in range(int(schedule[i])):
-                start_times.append(i)
-    schedule_dict = {i: start_times[i]*params['interval'] for i in range(params['patients'])} # dictionary of scheduled start time per patient
 
-    # simulating the schedule
-    wait,tardiness = simopt(schedule_dict,simulations,params,appointment_lengths)
-    
-    return 2*wait + tardiness
-    
 """
 Understanding of sim-opt:
     create a neighborhood of solutions
@@ -204,49 +208,88 @@ Understanding of sim-opt:
 
 """
 
-# creating the neighborhood
-slots=list(range(len(individual_schedule)))
-blank_schedule = np.zeros(len(individual_schedule))
-neighborhood=[individual_schedule]
-neighborhood_size = 100
-while len(neighborhood) <= neighborhood_size:
-    appt_slots = random.sample(slots,12)
-    #appt_slots = random.choices(slots,k=12) # for multiple appts on one time
-    if 0 in appt_slots and len([i for i in appt_slots if i >= 34]) <= 0: # len([i for i in appt_slots if i < 18]) >= 6 and
-        proposed_schedule = blank_schedule.copy()
-        for prop in appt_slots:
-            proposed_schedule[prop]+=1
-        #proposed_schedule[appt_slots]=1
-        if tuple(proposed_schedule) not in neighborhood:
-            #neighborhood.append(list(proposed_schedule))
-            consec_ones = False
-            consec_zeros = False
-            for i in range(len(proposed_schedule)-2):
-                if sum(proposed_schedule[i:i+3]) == 3:
-                    consec_ones = True
-                    break
-            for i in range(len(proposed_schedule)-3):
-                if sum(1-j for j in proposed_schedule[i:i+4]) == 4:
-                    consec_zeros = True
-                    break
-            if not consec_ones and not consec_zeros:
-                #if tuple(proposed_schedule) not in neighborhood:
-                neighborhood.append(list(proposed_schedule))     
+    
 
-neighborhood_time = time.time()
-print('Neighborhood generated')
-print('Sim-opt in progress...')
+def get_neighbour(schedule):
+    ''' generate a neighbour from the neighbourhood of the current schedule
+    input: schedule of the form [1,0,0,1,0,...]
+    '''
+    neighbour = schedule.copy()
+    # pick a random interval where there is a patient:
+
+    index = random.choice([index for index,n_patients in enumerate(schedule) if n_patients > 0]) 
+    # pick a new interval for selected patient:
+    
+    if index != 0 and index != 35:
+        index2 = random.choice([-1,1])+index
+    elif index == 0:
+        index2 = index+1
+    else:
+        index2 = index-1
+    
+    #index2 = random.choice([i for i in range(34) if i!=index])
         
+    neighbour[index] -= 1
+    neighbour[index2] += 1
+
+
+    return neighbour
+    
+#%%
+start_time=time.time()
+budget = 5000
+scores = {tuple(individual_schedule): {'count': 0, 'mean': 0, 'sum': 0}} # save n(x), mean objective value and sum of objective values
+current = individual_schedule
+n_jumps = 0
+jump = []
+while budget > 0:
+        
+    neighbour = get_neighbour(current)
+    appointment_lengths = [apt() for i in range(params['patients'])]
+    _,_,primary_obj = simopt(current,appointment_lengths,simulations=100)
+    _,_,neighbour_obj = simopt(neighbour,appointment_lengths,simulations=100)
+    
+    if tuple(neighbour) not in scores:
+        scores[tuple(neighbour)] = {'count': 0, 'mean': 0, 'sum': 0}
+        
+    scores[tuple(current)]['count'] += 1
+    scores[tuple(neighbour)]['count'] += 1
+    scores[tuple(current)]['sum'] += primary_obj
+    scores[tuple(neighbour)]['sum'] += neighbour_obj
+    scores[tuple(current)]['mean'] = scores[tuple(current)]['sum']/scores[tuple(current)]['count']
+    scores[tuple(neighbour)]['mean'] = scores[tuple(neighbour)]['sum']/scores[tuple(neighbour)]['count']
+    if scores[tuple(neighbour)]['mean'] < scores[tuple(current)]['mean']:
+        jump.append(1)
+        current = neighbour
+    else:
+        jump.append(0)
+    budget -= 1
+
+print("Total time: {:.2f}".format(time.time()-start_time))
+#%%
+xx = [i for i in scores if scores[i]['count'] >= 10]
+    
+#%%
+schedule_with_counts = {schedule:scores[schedule]['count'] for schedule in scores}
+optimal_schedule = max(schedule_with_counts,key=schedule_with_counts.get)
+#optimal = np.argmax(counts)
+#print(optimal,n_jumps)
+
+schedule_with_objective = {schedule:scores[schedule]['mean'] for schedule in scores if scores[schedule]['count'] >= 8}
+optimal_schedule2 = min(schedule_with_objective,key=schedule_with_objective.get)
+scores[optimal_schedule2]
+scores[optimal_schedule]
+CI(optimal_schedule)
+CI(optimal_schedule2)
+
+#%%
 # simulating
 neighbors = neighborhood_size
 budget = 500000
 #primary = random.choice(range(neighbors))
 primary = 0
-scores = {i:[0,0] for i in range(neighbors)}
+scores = {i:[0,0] for i in range(neighbors)}   # saving sum of objective values and n(x)
 while budget > 0:
-    random_neighbor = random.choice(range(neighbors))
-    while random_neighbor == primary:
-        random_neighbor = random.choice(range(neighbors))
     appointment_lengths = [apt() for i in range(params['patients'])]
     neighbor_obj = get_objective_simopt(neighborhood[random_neighbor],appointment_lengths)
     primary_obj = get_objective_simopt(neighborhood[primary],appointment_lengths)
@@ -276,13 +319,14 @@ given according to the ranking.
 
 """
 
-results_dict,full_waiting_array = CI(neighborhood[most_frequent_solution])
 
+
+'''
 print('Mean objective value: {:.2f}'.format(results_dict['mean'][0]))
 print('CI: {}'.format(results_dict['CI'][0]))
 print('CI is {:.2f}% of the mean'.format(np.divide(100*results_dict['width'][0],results_dict['mean'][0])))
 print('Simulation batches: {:.2f}'.format(results_dict['batches']))
-
+'''
 #%%
 """
 d. 
@@ -435,16 +479,3 @@ sim_opt_time = time.time()
 print('Time for generating neighborhood: {:.2f}'.format(neighborhood_time-start_time))
 print('Time for sim-opt: {:.2f}'.format(sim_opt_time-neighborhood_time))
 print('Total time: {:.2f}'.format(sim_opt_time-start_time))
-
-
-
-
-
-
-
-
-
-
-
-
-[i for i in list(range(34)) if i != index]

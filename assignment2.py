@@ -376,7 +376,7 @@ print('Sim-opt in progress...')
 slots=list(range(len(individual_schedule)))
 blank_schedule = np.zeros(len(individual_schedule))
 neighborhood=[individual_schedule]
-budget = 500000
+budget = 10000
 #primary = random.choice(range(neighbors))
 primary = 0
 #scores = {i:[0,0] for i in range(neighbors)}
@@ -389,7 +389,7 @@ while budget > 0:
         neighbor = neighborhood[primary].copy()
         neighbor[minus_one] -= 1
         neighbor[plus_one] += 1
-        if tuple(neighbor) not in neighborhood:
+        if neighbor not in neighborhood:
             if neighbor[0] == 1 and sum(neighbor[-2:]) != 0:
                 consec_ones = False
                 consec_zeros = False
