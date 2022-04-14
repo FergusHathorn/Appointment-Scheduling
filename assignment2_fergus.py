@@ -92,7 +92,7 @@ def simulate(schedulelist,appointment_lengths = None,simulations=1,params=params
     mean_tardiness = np.mean(tardiness)
     objective_value = 2*mean_tardiness + mean_waiting_time
     
-    return objective_value, mean_waiting_time, mean_tardiness
+    return objective_value, mean_waiting_time, mean_tardiness, waiting
 
 def CI(sched):
     obj_batches = []  # list of the means of the objective value from each batch of 100 simulations
@@ -106,7 +106,7 @@ def CI(sched):
     width = [100000,100000,100000]
     
     while max(width[0]/mean_obj,width[1]/mean_wait,width[2]/mean_tardiness) > 0.20:
-      obj,wait,tardiness=simulate(sched,simulations=100)
+      obj,wait,tardiness,_=simulate(sched,simulations=100)
       obj_batches.append(obj)
       wait_batches.append(wait)
       tardiness_batches.append(tardiness)
@@ -135,7 +135,7 @@ def CI(sched):
     print('CI: {}'.format(CI_tardiness))
     print('CI is {:.2f}% of the mean'.format(np.divide(100*width[2],mean_tardiness)))
     print('Simulation batches: {:.2f}'.format(n))
-    #return results_dict
+    return results_dict,wait_batches
 
 '''
 finish_time = sim_time+params['interval']*round(apt()/params['interval'])
@@ -154,19 +154,6 @@ time. You have a simulation budget of 10000 simulations. Construct yourself an a
 neighborhood and explain your choice also in the  report.
 
 """
-
-
-"""
-Understanding of sim-opt:
-    create a neighborhood of solutions
-    choose an initial state (maybe the individual schedule)
-    randomly choose another neighbor
-    simulate the same consulting times on each schedule
-    'winner stays on'
-    count how many times each schedule is simulated and also adjust the average score for each schedule
-
-"""
-
 
 def get_neighbour(schedule):
     ''' generate a neighbour from the neighbourhood of the current schedule
@@ -231,8 +218,8 @@ while budget > 0:
     primary_objs,neighbour_objs = 0,0
     for sim in range(sims):
         appointment_lengths = [apt() for i in range(params['patients'])]
-        _,_,primary_obj = simopt(current,appointment_lengths=appointment_lengths,simulations=1)
-        _,_,neighbour_obj = simopt(neighbour,appointment_lengths=appointment_lengths,simulations=1)
+        _,_,primary_obj,_ = simulate(current,appointment_lengths=appointment_lengths,simulations=1)
+        _,_,neighbour_obj,_ = simulate(neighbour,appointment_lengths=appointment_lengths,simulations=1)
         primary_objs+=primary_obj
         neighbour_objs+=neighbour_obj
     mean_primary_obj = primary_objs/sims
@@ -266,54 +253,9 @@ schedule_with_objective = {schedule:scores[schedule]['mean'] for schedule in sco
 optimal_schedule2 = min(schedule_with_objective,key=schedule_with_objective.get)
 scores[optimal_schedule2]
 scores[optimal_schedule]
-CI(optimal_schedule)
+results_dict,wait_batches = CI(optimal_schedule)
 CI(optimal_schedule2)
 
-#%%
-# simulating
-neighbors = neighborhood_size
-budget = 500000
-#primary = random.choice(range(neighbors))
-primary = 0
-scores = {i:[0,0] for i in range(neighbors)}   # saving sum of objective values and n(x)
-while budget > 0:
-    appointment_lengths = [apt() for i in range(params['patients'])]
-    neighbor_obj,_,_ = simulate(neighborhood[random_neighbor],appointment_lengths)
-    primary_obj,_,_ = simulate(neighborhood[primary],appointment_lengths)
-    scores[primary][0] += 1
-    scores[primary][1] += primary_obj
-    scores[random_neighbor][0] += 1
-    scores[random_neighbor][1] += neighbor_obj
-    if scores[primary][1]/scores[primary][0] < scores[random_neighbor][1]/scores[random_neighbor][0]:
-    #if primary_obj < neighbor_obj:
-        primary = random_neighbor
-    budget -= 1
-
-most_frequent_solution = np.argmax([scores[i][0] for i in scores])
-
-sim_opt_time = time.time()
-
-print('Time for generating neighborhood: {:.2f}'.format(neighborhood_time-start_time))
-print('Time for sim-opt: {:.2f}'.format(sim_opt_time-neighborhood_time))
-print('Total time: {:.2f}'.format(sim_opt_time-start_time))
-    
-#%%
-"""
-c. 
-Calculate for the optimal schedule the objective and its confidence interval. Simulate often 
-enough to get a small confidence interval. Good solutions are ranked and at maximum 1 point is 
-given according to the ranking.
-
-"""
-
-
-
-'''
-print('Mean objective value: {:.2f}'.format(results_dict['mean'][0]))
-print('CI: {}'.format(results_dict['CI'][0]))
-print('CI is {:.2f}% of the mean'.format(np.divide(100*results_dict['width'][0],results_dict['mean'][0])))
-print('Simulation batches: {:.2f}'.format(results_dict['batches']))
-'''
 #%%
 """
 d. 
@@ -321,11 +263,9 @@ Calculate each 10th percentile of the waiting time of each patient, and put them
 the patient number on the x-axis.
 
 """
-wait_times_by_sim = []
-for sim in full_waiting_array:
-    for sub_sim in sim:
-        wait_times_by_sim.append(sub_sim)
-patient_waiting_times = [[i[k] for i in wait_times_by_sim] for k in range(12)]
+_,_,_,waiting_times = simulate(optimal_schedule,simulations=100000)
+
+patient_waiting_times = [[i[k] for i in waiting_times] for k in range(12)]
 
 pcts = []
 for j in [10,20,30,40,50,60,70,80,90]:
@@ -336,86 +276,3 @@ for i in pcts:
     plt.title('Percentile waiting times per patient', fontsize=15)
     plt.xlabel('Patient', fontsize=15)
     plt.ylabel('Waiting time (minutes)', fontsize=15)
-'''
-plt.bar(list(range(1,13)),pct_10)
-plt.title('10th percentile waiting times per patient', fontsize=15)
-plt.xlabel('Patient', fontsize=15)
-plt.ylabel('Waiting time (minutes)', fontsize=15)
-'''
-#%%
-"""
-b.
-Implement the sim-opt algorithm discussed during the lectures and use it to find the best 
-possible schedule, counting the doctor's tardiness 2x heavier than the average patient waiting 
-time. You have a simulation budget of 10000 simulations. Construct yourself an appropriate 
-neighborhood and explain your choice also in the  report.
-
-"""
-start_time = time.time()
-
-neighborhood_time = time.time()
-print('Neighborhood generated')
-print('Sim-opt in progress...')
-        
-# simulating
-slots=list(range(len(individual_schedule)))
-blank_schedule = np.zeros(len(individual_schedule))
-neighborhood=[individual_schedule]
-budget = 500000
-#primary = random.choice(range(neighbors))
-primary = 0
-#scores = {i:[0,0] for i in range(neighbors)}
-scores = {0:[0,0]}
-while budget > 0:
-    not_acceptable=True
-    while not_acceptable:
-        minus_one = random.choice([i for i,v in enumerate(neighborhood[primary]) if v])
-        plus_one = random.choice(list(range(36)))
-        neighbor = neighborhood[primary].copy()
-        neighbor[minus_one] -= 1
-        neighbor[plus_one] += 1
-        if tuple(neighbor) not in neighborhood:
-            if neighbor[0] == 1 and sum(neighbor[-2:]) != 0:
-                consec_ones = False
-                consec_zeros = False
-                for i in range(len(neighbor)-2):
-                    if sum(neighbor[i:i+3]) == 3:
-                        consec_ones = True
-                        break
-                for i in range(len(neighbor)-3):
-                    if sum(1-j for j in neighbor[i:i+4]) == 4:
-                        consec_zeros = True
-                        break
-                if not consec_ones and not consec_zeros:
-                    #if tuple(proposed_schedule) not in neighborhood:
-                    neighborhood.append(neighbor)  
-                    random_neighbor_idx = len(neighborhood)-1
-                    existing_neighbor=False
-                    not_acceptable = False
-        else:
-            random_neighbor_idx = [i for i,v in enumerate(neighborhood) if v == tuple(neighbor)]
-            existing_neighbor=True
-                
-            
-    appointment_lengths = [apt() for i in range(params['patients'])]
-    neighbor_obj,_,_ = simulate(neighborhood[random_neighbor_idx],appointment_lengths)
-    primary_obj,_,_ = simulate(neighborhood[primary],appointment_lengths)
-    scores[primary][0] += 1
-    scores[primary][1] += primary_obj
-    if existing_neighbor:
-        scores[random_neighbor_idx][0]+=1
-        scores[random_neighbor_idx][1]+=neighbor_obj
-    else:
-        scores.update({random_neighbor_idx:[1,neighbor_obj]})
-    if scores[primary][1]/scores[primary][0] < scores[random_neighbor_idx][1]/scores[random_neighbor_idx][0]:
-    #if primary_obj < neighbor_obj:
-        primary = random_neighbor_idx
-    budget -= 1
-
-most_frequent_solution = np.argmax([scores[i][0] for i in scores])
-
-sim_opt_time = time.time()
-
-print('Time for generating neighborhood: {:.2f}'.format(neighborhood_time-start_time))
-print('Time for sim-opt: {:.2f}'.format(sim_opt_time-neighborhood_time))
-print('Total time: {:.2f}'.format(sim_opt_time-start_time))
