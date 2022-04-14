@@ -311,4 +311,167 @@ plt.title('10th percentile waiting times per patient', fontsize=15)
 plt.xlabel('Patient', fontsize=15)
 plt.ylabel('Waiting time (minutes)', fontsize=15)
 '''
+#%%
+"""
+b.
+Implement the sim-opt algorithm discussed during the lectures and use it to find the best 
+possible schedule, counting the doctor's tardiness 2x heavier than the average patient waiting 
+time. You have a simulation budget of 10000 simulations. Construct yourself an appropriate 
+neighborhood and explain your choice also in the  report.
 
+"""
+start_time = time.time()
+
+def simopt(schedule,simulations,params,appointment_lengths):
+    tardiness = []
+    waiting = []
+    for i in range(simulations):
+        waiting_times = []
+        finish_times = []
+        
+        sim_time = 0
+        finish_time = 0
+        for patient in schedule:
+            waiting_times.append(max(0,finish_time-schedule[patient]))
+            finish_time = sim_time+appointment_lengths[patient]
+            #finish_time = sim_time+params['interval']*round(appointment_lengths[patient]/params['interval'])
+            finish_times.append(finish_time)
+            
+            sim_time = max(finish_time, schedule[patient])
+            
+        tardiness.append(max(sim_time-params['sim_length'],0))
+        waiting.append(waiting_times)
+        
+    mean_waiting_time = np.mean(waiting)
+    mean_tardiness = np.mean(tardiness)
+    
+    return mean_waiting_time, mean_tardiness
+
+def get_objective_simopt(schedule,appointment_lengths,params=params,simulations=1):
+    '''
+    input: 
+        the schedule of form (1,0,0,1,... etc) in intervals of 5 minutes. 1 represents the start
+        of a proposed appointment, 0 means that an appointment is not scheduled to start in that period.
+    
+    output:
+        objective value = 2x(mean tardiness) + mean waiting time
+    '''
+    #start_times = [i for i,v in enumerate(schedule) if v] # index of scheduled appointment start time
+    start_times = []
+    for i in range(len(schedule)):
+        if schedule[i]>0:
+            for j in range(int(schedule[i])):
+                start_times.append(i)
+    schedule_dict = {i: start_times[i]*params['interval'] for i in range(params['patients'])} # dictionary of scheduled start time per patient
+
+    # simulating the schedule
+    wait,tardiness = simopt(schedule_dict,simulations,params,appointment_lengths)
+    
+    return 2*wait + tardiness
+    
+"""
+Understanding of sim-opt:
+    create a neighborhood of solutions
+    choose an initial state (maybe the individual schedule)
+    randomly choose another neighbor
+    simulate the same consulting times on each schedule
+    'winner stays on'
+    count how many times each schedule is simulated and also adjust the average score for each schedule
+
+"""
+'''
+# creating the neighborhood
+slots=list(range(len(individual_schedule)))
+blank_schedule = np.zeros(len(individual_schedule))
+neighborhood=[individual_schedule]
+neighborhood_size = 100
+while len(neighborhood) <= neighborhood_size:
+    appt_slots = random.sample(slots,12)
+    #appt_slots = random.choices(slots,k=12) # for multiple appts on one time
+    if 0 in appt_slots and len([i for i in appt_slots if i >= 34]) <= 0: # len([i for i in appt_slots if i < 18]) >= 6 and
+        proposed_schedule = blank_schedule.copy()
+        for prop in appt_slots:
+            proposed_schedule[prop]+=1
+        #proposed_schedule[appt_slots]=1
+        if tuple(proposed_schedule) not in neighborhood:
+            #neighborhood.append(list(proposed_schedule))
+            consec_ones = False
+            consec_zeros = False
+            for i in range(len(proposed_schedule)-2):
+                if sum(proposed_schedule[i:i+3]) == 3:
+                    consec_ones = True
+                    break
+            for i in range(len(proposed_schedule)-3):
+                if sum(1-j for j in proposed_schedule[i:i+4]) == 4:
+                    consec_zeros = True
+                    break
+            if not consec_ones and not consec_zeros:
+                #if tuple(proposed_schedule) not in neighborhood:
+                neighborhood.append(list(proposed_schedule))     
+'''
+neighborhood_time = time.time()
+print('Neighborhood generated')
+print('Sim-opt in progress...')
+        
+# simulating
+slots=list(range(len(individual_schedule)))
+blank_schedule = np.zeros(len(individual_schedule))
+neighborhood=[individual_schedule]
+budget = 500000
+#primary = random.choice(range(neighbors))
+primary = 0
+#scores = {i:[0,0] for i in range(neighbors)}
+scores = {0:[0,0]}
+while budget > 0:
+    not_acceptable=True
+    while not_acceptable:
+        minus_one = random.choice([i for i,v in enumerate(neighborhood[primary]) if v])
+        plus_one = random.choice(list(range(36)))
+        neighbor = neighborhood[primary].copy()
+        neighbor[minus_one] -= 1
+        neighbor[plus_one] += 1
+        if tuple(neighbor) not in neighborhood:
+            if neighbor[0] == 1 and sum(neighbor[-2:]) != 0:
+                consec_ones = False
+                consec_zeros = False
+                for i in range(len(neighbor)-2):
+                    if sum(neighbor[i:i+3]) == 3:
+                        consec_ones = True
+                        break
+                for i in range(len(neighbor)-3):
+                    if sum(1-j for j in neighbor[i:i+4]) == 4:
+                        consec_zeros = True
+                        break
+                if not consec_ones and not consec_zeros:
+                    #if tuple(proposed_schedule) not in neighborhood:
+                    neighborhood.append(neighbor)  
+                    random_neighbor_idx = len(neighborhood)-1
+                    existing_neighbor=False
+                    not_acceptable = False
+        else:
+            random_neighbor_idx = [i for i,v in enumerate(neighborhood) if v == tuple(neighbor)]
+            existing_neighbor=True
+                
+            
+    appointment_lengths = [apt() for i in range(params['patients'])]
+    neighbor_obj = get_objective_simopt(neighborhood[random_neighbor_idx],appointment_lengths)
+    primary_obj = get_objective_simopt(neighborhood[primary],appointment_lengths)
+    scores[primary][0] += 1
+    scores[primary][1] += primary_obj
+    if existing_neighbor:
+        scores[random_neighbor_idx][0]+=1
+        scores[random_neighbor_idx][1]+=neighbor_obj
+    else:
+        scores.update({random_neighbor_idx:[1,neighbor_obj]})
+    if scores[primary][1]/scores[primary][0] < scores[random_neighbor_idx][1]/scores[random_neighbor_idx][0]:
+    #if primary_obj < neighbor_obj:
+        primary = random_neighbor_idx
+    budget -= 1
+
+most_frequent_solution = np.argmax([scores[i][0] for i in scores])
+
+sim_opt_time = time.time()
+
+print('Time for generating neighborhood: {:.2f}'.format(neighborhood_time-start_time))
+print('Time for sim-opt: {:.2f}'.format(sim_opt_time-neighborhood_time))
+print('Total time: {:.2f}'.format(sim_opt_time-start_time))
