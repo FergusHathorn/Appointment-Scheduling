@@ -368,47 +368,7 @@ def get_objective_simopt(schedule,appointment_lengths,params=params,simulations=
     wait,tardiness = simopt(schedule_dict,simulations,params,appointment_lengths)
     
     return 2*wait + tardiness
-    
-"""
-Understanding of sim-opt:
-    create a neighborhood of solutions
-    choose an initial state (maybe the individual schedule)
-    randomly choose another neighbor
-    simulate the same consulting times on each schedule
-    'winner stays on'
-    count how many times each schedule is simulated and also adjust the average score for each schedule
 
-"""
-'''
-# creating the neighborhood
-slots=list(range(len(individual_schedule)))
-blank_schedule = np.zeros(len(individual_schedule))
-neighborhood=[individual_schedule]
-neighborhood_size = 100
-while len(neighborhood) <= neighborhood_size:
-    appt_slots = random.sample(slots,12)
-    #appt_slots = random.choices(slots,k=12) # for multiple appts on one time
-    if 0 in appt_slots and len([i for i in appt_slots if i >= 34]) <= 0: # len([i for i in appt_slots if i < 18]) >= 6 and
-        proposed_schedule = blank_schedule.copy()
-        for prop in appt_slots:
-            proposed_schedule[prop]+=1
-        #proposed_schedule[appt_slots]=1
-        if tuple(proposed_schedule) not in neighborhood:
-            #neighborhood.append(list(proposed_schedule))
-            consec_ones = False
-            consec_zeros = False
-            for i in range(len(proposed_schedule)-2):
-                if sum(proposed_schedule[i:i+3]) == 3:
-                    consec_ones = True
-                    break
-            for i in range(len(proposed_schedule)-3):
-                if sum(1-j for j in proposed_schedule[i:i+4]) == 4:
-                    consec_zeros = True
-                    break
-            if not consec_ones and not consec_zeros:
-                #if tuple(proposed_schedule) not in neighborhood:
-                neighborhood.append(list(proposed_schedule))     
-'''
 neighborhood_time = time.time()
 print('Neighborhood generated')
 print('Sim-opt in progress...')
