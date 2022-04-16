@@ -127,7 +127,7 @@ def CI(sched):
     print('Mean tardiness: {:.2f}'.format(mean_tardiness))
     print('CI: {}'.format(CI_tardiness))
     print('CI is {:.2f}% of the mean'.format(np.divide(100*width[2],mean_tardiness)))
-    print('Simulation batches: {:.2f}'.format(n))
+    print('Simulation batches:', n)
     return results_dict,wait_batches
 
 '''
@@ -180,8 +180,8 @@ def get_neighbour(schedule):
         neighbour[index] -= 1
         neighbour[index2] += 1
         
-        consec_ones = False
-        consec_zeros = False
+        consec_ones = False  # are there 3 consecutive ones?
+        consec_zeros = False  # are there 4 consecutive zeros?
         for i in range(len(neighbour)-3):
             if sum(neighbour[i:i+3]) > 2:
                 consec_ones = True
@@ -235,6 +235,42 @@ while budget > 0:
 print("Total time: {:.2f}".format(time.time()-start_time))
     
 #%%
+start_time=time.time()
+scores = {tuple(individual_schedule): {'count': 0, 'mean': 0, 'sum': 0}} # save n(x), mean objective value and sum of objective values
+current = individual_schedule
+n_jumps = 0
+jump = []
+sims = 10
+budget = int(1000000/(2*sims))
+for i in range(budget):
+    
+    neighbour = get_neighbour(list(current))
+    primary_obj,_,_,_ = simulate(current,simulations=sims)
+    neighbour_obj,_,_,_ = simulate(neighbour,simulations=sims)
+    
+    current = tuple(current)
+    neighbour = tuple(neighbour)
+
+    if neighbour not in scores:
+        scores[neighbour] = {'count': 0, 'mean': 0, 'sum': 0}
+        
+    scores[current]['count'] += 1
+    scores[neighbour]['count'] += 1
+    scores[current]['sum'] += primary_obj
+    scores[neighbour]['sum'] += neighbour_obj
+    scores[current]['mean'] = scores[current]['sum']/scores[current]['count']
+    scores[neighbour]['mean'] = scores[neighbour]['sum']/scores[neighbour]['count']
+    if scores[neighbour]['mean'] < scores[current]['mean']:
+        jump.append(1)
+        current = list(neighbour).copy()
+    else:
+        jump.append(0)
+
+print("Total time: {:.2f}".format(time.time()-start_time))
+
+
+
+#%%
 schedule_with_counts = {schedule:scores[schedule]['count'] for schedule in scores}
 optimal_schedule = max(schedule_with_counts,key=schedule_with_counts.get)
 #optimal = np.argmax(counts)
@@ -251,6 +287,7 @@ CI(optimal_schedule2)
 print('-------------------')
 CI(individual_schedule)
 
+np.savetxt("7,41.csv", np.asarray(optimal_schedule2), delimiter=",")
 #%%
 """
 d. 
