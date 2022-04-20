@@ -241,14 +241,14 @@ print('-------------------')
 CI(optimal_schedule2, maxwidth=0.05)
 print('-------------------')
 CI(individual_schedule)
-# #%%
-# proposed = [1,0,1]+10*[0,0,1]+[0,0,0]
-# proposed2 = [1,0,1,0] + [1,0,0]*9 + [1,0,0,0,0]
-# CI(proposed2, maxwidth=0.01)
-# #np.savetxt("7,41.csv", np.asarray(optimal_schedule2), delimiter=",")
-# #%%
-# for i in range(36):
-#     print(proposed2[i]==optimal_schedule[i])
+#%%
+proposed = [1,0,1]+10*[0,0,1]+[0,0,0]
+proposed2 = [1,0,1,0] + [1,0,0]*9 + [1,0,0,0,0]
+CI(proposed2, maxwidth=0.05)
+#np.savetxt("7,41.csv", np.asarray(optimal_schedule2), delimiter=",")
+#%%
+for i in range(36):
+    print(proposed[i]==optimal_schedule[i])
 #%%
 """
 d. 
@@ -264,8 +264,24 @@ pcts = []
 for j in [10,20,30,40,50,60,70,80,90]:
     pcts.append([np.percentile(i,j) for i in patient_waiting_times])
     
-for i in pcts:
-    plt.plot(i)
-    plt.title('Percentile waiting times per patient', fontsize=15)
-    plt.xlabel('Patient', fontsize=15)
-    plt.ylabel('Waiting time (minutes)', fontsize=15)
+# pcts_array = [np.percentile(i,[10,20,30,40,50,60,70,80,90]) for i in patient_waiting_times]
+
+X_axis = np.arange(12)
+
+labels = ['10%','20%','30%','40%','50%','60%','70%','80%','90%']
+
+for p in range(9):
+    if p<5:
+        step = -0.1*(5-p)
+    else:
+        step = 0.1*(p-5)
+    plt.bar(X_axis + step, pcts[p], 0.08, label=labels[p])
+    #plt.bar(X_axis + 0.05, Zboys, 0.1, label = 'Boys')
+
+plt.xticks(X_axis, ['1','2','3','4','5','6','7','8','9','10','11','12'])
+plt.xlabel("Patients")
+plt.ylabel("Waiting time")
+plt.title("Percentile plot per patient")
+plt.legend(fontsize=8)
+# plt.show()
+plt.savefig('percentileplot.png', dpi=300)
