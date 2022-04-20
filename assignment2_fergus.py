@@ -209,8 +209,8 @@ while budget > 0:
     primary_objs,neighbour_objs = 0,0
     for sim in range(sims):
         appointment_lengths = [apt() for i in range(params['patients'])]
-        _,_,primary_obj,_ = simulate(current,appointment_lengths=appointment_lengths,simulations=1)
-        _,_,neighbour_obj,_ = simulate(neighbour,appointment_lengths=appointment_lengths,simulations=1)
+        primary_obj,_,_,_ = simulate(current,appointment_lengths=appointment_lengths,simulations=1)
+        neighbour_obj,_,_,_ = simulate(neighbour,appointment_lengths=appointment_lengths,simulations=1)
         primary_objs+=primary_obj
         neighbour_objs+=neighbour_obj
     mean_primary_obj = primary_objs/sims
