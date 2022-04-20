@@ -20,8 +20,8 @@ from statistics import mode
 from statistics import mean
 import matplotlib.pyplot as plt
 
-random.seed(10)
-np.random.seed(10)
+random.seed(5)
+np.random.seed(5)
 #%%
 # """
 # a.
