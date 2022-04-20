@@ -20,6 +20,7 @@ from statistics import mode
 from statistics import mean
 import matplotlib.pyplot as plt
 
+random.seed(10)
 #%%
 # """
 # a.
@@ -89,7 +90,7 @@ def simulate(schedulelist,appointment_lengths = None,simulations=1,params=params
     
     return objective_value, mean_waiting_time, mean_tardiness, waiting
 
-def CI(sched):
+def CI(sched, maxwidth=0.2):
     obj_batches = []  # list of the means of the objective value from each batch of 100 simulations
     wait_batches = []
     tardiness_batches = []
@@ -100,7 +101,7 @@ def CI(sched):
     
     width = [100000,100000,100000]
     
-    while max(width[0]/mean_obj,width[1]/mean_wait,width[2]/mean_tardiness) > 0.20:
+    while max(width[0]/mean_obj,width[1]/mean_wait,width[2]/mean_tardiness) > maxwidth:
       obj,wait,tardiness,_=simulate(sched,simulations=100)
       obj_batches.append(obj)
       wait_batches.append(wait)
@@ -128,7 +129,7 @@ def CI(sched):
     print('CI: {}'.format(CI_tardiness))
     print('CI is {:.2f}% of the mean'.format(np.divide(100*width[2],mean_tardiness)))
     print('Simulation batches:', n)
-    return results_dict,wait_batches
+    #return results_dict,wait_batches
 
 '''
 finish_time = sim_time+params['interval']*round(apt()/params['interval'])
@@ -158,35 +159,26 @@ def get_neighbour(schedule):
     not_acceptable = True
     while not_acceptable:
         neighbour = schedule.copy()
-        index = random.choice([index for index,n_patients in enumerate(schedule) if n_patients > 0 and index not in tuple([0,34,35])]) 
+        index = random.choice([index for index,n_patients in enumerate(schedule) if n_patients > 0 and index not in tuple([34,35])]) 
+        
         # pick a new interval for selected patient:
-
-        if index != 1 and index != 33:
-            index2 = random.choice([-1,1])+index
-        elif index == 1:
+        if index != 0 and index != 33:
+            index2 = random.choice([-1,1]) + index
+        elif index == 0:
             index2 = index+1
         elif index == 33:
             index2 = index-1
-        
-        '''
-        elif index == 0:
-            index2 = index+1
-        else:
-            index2 = index-1
-        '''
-        
-        #index2 = random.choice([i for i in range(1,34) if i!=index]) # possibly add condition for 2s
             
         neighbour[index] -= 1
         neighbour[index2] += 1
         
-        consec_ones = False  # are there 3 consecutive ones?
-        consec_zeros = False  # are there 4 consecutive zeros?
-        for i in range(len(neighbour)-3):
+        consec_ones = False  # are there 3 patients in a 15 minute interval?
+        consec_zeros = False  # are there 4 consecutive slots empty?
+        for i in range(8,len(neighbour)-3):
             if sum(neighbour[i:i+3]) > 2:
                 consec_ones = True
                 break
-        for i in range(len(neighbour)-4):
+        for i in range(len(neighbour)-10):
             if sum(neighbour[i:i+4]) == 0:
                 consec_zeros = True
                 break
@@ -197,15 +189,18 @@ def get_neighbour(schedule):
     
 #%%
 start_time=time.time()
-scores = {tuple(individual_schedule): {'count': 0, 'mean': 0, 'sum': 0}} # save n(x), mean objective value and sum of objective values
+scores = {tuple(individual_schedule): {'count': 0, 'mean': 0, 'sum': 0, 'returns':0}} # save n(x), mean objective value and sum of objective values
 current = individual_schedule
-n_jumps = 0
-jump = []
-sims = 10
-budget = 1000000/(2*sims)
+budget = 1000000
 while budget > 0:
         
     neighbour = get_neighbour(current)
+    if tuple(neighbour) not in scores:
+        scores[tuple(neighbour)] = {'count': 0, 'mean': 0, 'sum': 0, 'returns':0}    
+        sims = 2000
+    else: 
+        sims = 1
+        
     primary_objs,neighbour_objs = 0,0
     for sim in range(sims):
         appointment_lengths = [apt() for i in range(params['patients'])]
@@ -215,60 +210,20 @@ while budget > 0:
         neighbour_objs+=neighbour_obj
     mean_primary_obj = primary_objs/sims
     mean_neighbour_obj = neighbour_objs/sims
-    
-    if tuple(neighbour) not in scores:
-        scores[tuple(neighbour)] = {'count': 0, 'mean': 0, 'sum': 0}
-        
-    scores[tuple(current)]['count'] += 1
-    scores[tuple(neighbour)]['count'] += 1
-    scores[tuple(current)]['sum'] += mean_primary_obj
-    scores[tuple(neighbour)]['sum'] += mean_neighbour_obj
+            
+    scores[tuple(current)]['count'] += sims
+    scores[tuple(neighbour)]['count'] += sims
+    scores[tuple(current)]['sum'] += primary_objs
+    scores[tuple(neighbour)]['sum'] += neighbour_objs
     scores[tuple(current)]['mean'] = scores[tuple(current)]['sum']/scores[tuple(current)]['count']
     scores[tuple(neighbour)]['mean'] = scores[tuple(neighbour)]['sum']/scores[tuple(neighbour)]['count']
     if scores[tuple(neighbour)]['mean'] < scores[tuple(current)]['mean']:
-        jump.append(1)
         current = neighbour.copy()
-    else:
-        jump.append(0)
-    budget -= 1
+        scores[tuple(neighbour)]['returns'] += 1
+    budget -= 2*sims
 
 print("Total time: {:.2f}".format(time.time()-start_time))
     
-#%%
-start_time=time.time()
-scores = {tuple(individual_schedule): {'count': 0, 'mean': 0, 'sum': 0}} # save n(x), mean objective value and sum of objective values
-current = individual_schedule
-n_jumps = 0
-jump = []
-sims = 10
-budget = int(1000000/(2*sims))
-for i in range(budget):
-    
-    neighbour = get_neighbour(list(current))
-    primary_obj,_,_,_ = simulate(current,simulations=sims)
-    neighbour_obj,_,_,_ = simulate(neighbour,simulations=sims)
-    
-    current = tuple(current)
-    neighbour = tuple(neighbour)
-
-    if neighbour not in scores:
-        scores[neighbour] = {'count': 0, 'mean': 0, 'sum': 0}
-        
-    scores[current]['count'] += 1
-    scores[neighbour]['count'] += 1
-    scores[current]['sum'] += primary_obj
-    scores[neighbour]['sum'] += neighbour_obj
-    scores[current]['mean'] = scores[current]['sum']/scores[current]['count']
-    scores[neighbour]['mean'] = scores[neighbour]['sum']/scores[neighbour]['count']
-    if scores[neighbour]['mean'] < scores[current]['mean']:
-        jump.append(1)
-        current = list(neighbour).copy()
-    else:
-        jump.append(0)
-
-print("Total time: {:.2f}".format(time.time()-start_time))
-
-
 
 #%%
 schedule_with_counts = {schedule:scores[schedule]['count'] for schedule in scores}
@@ -281,13 +236,19 @@ optimal_schedule2 = min(schedule_with_objective,key=schedule_with_objective.get)
 scores[optimal_schedule2]
 scores[optimal_schedule]
 print('-------------------')
-CI(optimal_schedule)
+CI(optimal_schedule, maxwidth=0.05)
 print('-------------------')
-CI(optimal_schedule2)
+CI(optimal_schedule2, maxwidth=0.05)
 print('-------------------')
 CI(individual_schedule)
-
-np.savetxt("7,41.csv", np.asarray(optimal_schedule2), delimiter=",")
+# #%%
+# proposed = [1,0,1]+10*[0,0,1]+[0,0,0]
+# proposed2 = [1,0,1,0] + [1,0,0]*9 + [1,0,0,0,0]
+# CI(proposed2, maxwidth=0.01)
+# #np.savetxt("7,41.csv", np.asarray(optimal_schedule2), delimiter=",")
+# #%%
+# for i in range(36):
+#     print(proposed2[i]==optimal_schedule[i])
 #%%
 """
 d. 
