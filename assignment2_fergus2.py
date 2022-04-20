@@ -21,6 +21,7 @@ from statistics import mean
 import matplotlib.pyplot as plt
 
 random.seed(10)
+np.random.seed(10)
 #%%
 # """
 # a.
@@ -223,7 +224,7 @@ while budget > 0:
     budget -= 2*sims
 
 print("Total time: {:.2f}".format(time.time()-start_time))
-    
+
 
 #%%
 schedule_with_counts = {schedule:scores[schedule]['count'] for schedule in scores}
@@ -261,16 +262,16 @@ _,_,_,waiting_times = simulate(optimal_schedule,simulations=100000)
 patient_waiting_times = [[i[k] for i in waiting_times] for k in range(12)]
 
 pcts = []
-for j in [10,20,30,40,50,60,70,80,90]:
+for j in [10,20,30,40,50,60,70,80,90,100]:
     pcts.append([np.percentile(i,j) for i in patient_waiting_times])
     
 # pcts_array = [np.percentile(i,[10,20,30,40,50,60,70,80,90]) for i in patient_waiting_times]
 
 X_axis = np.arange(12)
 
-labels = ['10%','20%','30%','40%','50%','60%','70%','80%','90%']
+labels = ['10%','20%','30%','40%','50%','60%','70%','80%','90%','100%']
 
-for p in range(9):
+for p in range(10):
     if p<5:
         step = -0.1*(5-p)
     else:
@@ -280,8 +281,8 @@ for p in range(9):
 
 plt.xticks(X_axis, ['1','2','3','4','5','6','7','8','9','10','11','12'])
 plt.xlabel("Patients")
-plt.ylabel("Waiting time")
-plt.title("Percentile plot per patient")
+plt.ylabel("Waiting time (log)")
+plt.title("Percentile waiting time per patient")
 plt.legend(fontsize=8)
-# plt.show()
-plt.savefig('percentileplot.png', dpi=300)
+plt.yscale('log')
+plt.savefig('percentileplot2.png', dpi=300)
